@@ -1,0 +1,7 @@
+LOCAL-ONLY NONREDISTRIBUTABLE BUILD
+
+The bundled FFmpeg and ffprobe executables in this working copy were configured with --enable-gpl, --enable-version3, and --enable-nonfree at the owner's explicit request.
+
+FFmpeg reports this configuration as "nonfree and unredistributable." Do not publish, upload, sell, transfer, or otherwise distribute this MacConvert application bundle or its FFmpeg/ffprobe executables.
+
+This build targets Apple silicon and dynamically uses codec libraries installed under /opt/homebrew on the local Mac. It is not a portable release artifact. Run Scripts/build-ffmpeg.sh to restore the universal LGPL-oriented bundled tools before resuming any distribution, signing, notarization, or clean-machine release work.

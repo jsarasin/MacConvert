@@ -1,0 +1,463 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B10000000000000000000001 /* MacConvertApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* MacConvertApp.swift */; };
+		B10000000000000000000002 /* ConversionProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* ConversionProfile.swift */; };
+		B10000000000000000000003 /* ConversionJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ConversionJob.swift */; };
+		B10000000000000000000004 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* AppSettings.swift */; };
+		B10000000000000000000005 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000005 /* AppModel.swift */; };
+		B10000000000000000000006 /* FinderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* FinderService.swift */; };
+		B10000000000000000000007 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* MainWindowView.swift */; };
+		B10000000000000000000008 /* OutputProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* OutputProfileView.swift */; };
+		B10000000000000000000009 /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000009 /* DropZoneView.swift */; };
+		B1000000000000000000000A /* JobHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000A /* JobHistoryView.swift */; };
+		B1000000000000000000000B /* JobRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000B /* JobRowView.swift */; };
+		B1000000000000000000000C /* FooterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000C /* FooterView.swift */; };
+		B1000000000000000000000D /* JobDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000D /* JobDetailsView.swift */; };
+		B1000000000000000000000E /* CustomEncodingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000E /* CustomEncodingView.swift */; };
+		B1000000000000000000000F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000F /* SettingsView.swift */; };
+		B10000000000000000000010 /* MacConvertTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* MacConvertTests.swift */; };
+		B10000000000000000000011 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000013 /* XCTest.framework */; };
+		B10000000000000000000012 /* FFmpegCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000014 /* FFmpegCatalog.swift */; };
+		B10000000000000000000013 /* FFmpegRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000015 /* FFmpegRunner.swift */; };
+		B10000000000000000000014 /* FormatSupportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000016 /* FormatSupportView.swift */; };
+		B10000000000000000000015 /* ffmpeg in Embed FFmpeg Tools */ = {isa = PBXBuildFile; fileRef = F10000000000000000000017 /* ffmpeg */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		B10000000000000000000016 /* ffprobe in Embed FFmpeg Tools */ = {isa = PBXBuildFile; fileRef = F10000000000000000000018 /* ffprobe */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		B10000000000000000000017 /* COPYING.LGPLv2.1.txt in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000019 /* COPYING.LGPLv2.1.txt */; };
+		B10000000000000000000018 /* FFmpeg-LICENSE.md in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000020 /* FFmpeg-LICENSE.md */; };
+		B10000000000000000000019 /* COPYING.GPLv3.txt in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000021 /* COPYING.GPLv3.txt */; };
+		B1000000000000000000001A /* LOCAL-NONREDISTRIBUTABLE.txt in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000022 /* LOCAL-NONREDISTRIBUTABLE.txt */; };
+		B1000000000000000000001B /* ConversionWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000023 /* ConversionWorker.swift */; };
+		B1000000000000000000001C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000024 /* Assets.xcassets */; };
+		B1000000000000000000001D /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000025 /* PreviewSupport.swift */; };
+		B20000000000000000000001 /* ConversionProfile.swift in Test Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* ConversionProfile.swift */; };
+		B20000000000000000000002 /* ConversionJob.swift in Test Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ConversionJob.swift */; };
+		B20000000000000000000003 /* AppSettings.swift in Test Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* AppSettings.swift */; };
+		B20000000000000000000004 /* AppModel.swift in Test Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000005 /* AppModel.swift */; };
+		B20000000000000000000005 /* FinderService.swift in Test Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* FinderService.swift */; };
+		B20000000000000000000006 /* FFmpegCatalog.swift in Test Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000014 /* FFmpegCatalog.swift */; };
+		B20000000000000000000007 /* FFmpegRunner.swift in Test Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000015 /* FFmpegRunner.swift */; };
+		B20000000000000000000008 /* ConversionWorker.swift in Test Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000023 /* ConversionWorker.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		PH1000000000000000000007 /* Embed FFmpeg Tools */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				B10000000000000000000015 /* ffmpeg in Embed FFmpeg Tools */,
+				B10000000000000000000016 /* ffprobe in Embed FFmpeg Tools */,
+			);
+			name = "Embed FFmpeg Tools";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		C10000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = P10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = T10000000000000000000001;
+			remoteInfo = MacConvert;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		F10000000000000000000001 /* MacConvertApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/MacConvertApp.swift; sourceTree = "<group>"; };
+		F10000000000000000000002 /* ConversionProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Models/ConversionProfile.swift; sourceTree = "<group>"; };
+		F10000000000000000000003 /* ConversionJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Models/ConversionJob.swift; sourceTree = "<group>"; };
+		F10000000000000000000004 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Models/AppSettings.swift; sourceTree = "<group>"; };
+		F10000000000000000000005 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/ViewModels/AppModel.swift; sourceTree = "<group>"; };
+		F10000000000000000000006 /* FinderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Services/FinderService.swift; sourceTree = "<group>"; };
+		F10000000000000000000007 /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/MainWindowView.swift; sourceTree = "<group>"; };
+		F10000000000000000000008 /* OutputProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/OutputProfileView.swift; sourceTree = "<group>"; };
+		F10000000000000000000009 /* DropZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/DropZoneView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000A /* JobHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/JobHistoryView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000B /* JobRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/JobRowView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000C /* FooterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/FooterView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000D /* JobDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/JobDetailsView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000E /* CustomEncodingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/CustomEncodingView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/SettingsView.swift; sourceTree = "<group>"; };
+		F10000000000000000000010 /* MacConvertTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvertTests/MacConvertTests.swift; sourceTree = "<group>"; };
+		F10000000000000000000011 /* MacConvert.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacConvert.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F10000000000000000000012 /* MacConvertTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacConvertTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F10000000000000000000013 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+		F10000000000000000000014 /* FFmpegCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Models/FFmpegCatalog.swift; sourceTree = "<group>"; };
+		F10000000000000000000015 /* FFmpegRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Services/FFmpegRunner.swift; sourceTree = "<group>"; };
+		F10000000000000000000016 /* FormatSupportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/FormatSupportView.swift; sourceTree = "<group>"; };
+		F10000000000000000000017 /* ffmpeg */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; path = MacConvert/Resources/Tools/ffmpeg; sourceTree = "<group>"; };
+		F10000000000000000000018 /* ffprobe */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; path = MacConvert/Resources/Tools/ffprobe; sourceTree = "<group>"; };
+		F10000000000000000000019 /* COPYING.LGPLv2.1.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = MacConvert/Resources/FFmpeg/COPYING.LGPLv2.1.txt; sourceTree = "<group>"; };
+		F10000000000000000000020 /* FFmpeg-LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = MacConvert/Resources/FFmpeg/FFmpeg-LICENSE.md; sourceTree = "<group>"; };
+		F10000000000000000000021 /* COPYING.GPLv3.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = MacConvert/Resources/FFmpeg/COPYING.GPLv3.txt; sourceTree = "<group>"; };
+		F10000000000000000000022 /* LOCAL-NONREDISTRIBUTABLE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = MacConvert/Resources/FFmpeg/LOCAL-NONREDISTRIBUTABLE.txt; sourceTree = "<group>"; };
+		F10000000000000000000023 /* ConversionWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Services/ConversionWorker.swift; sourceTree = "<group>"; };
+		F10000000000000000000024 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = MacConvert/Assets.xcassets; sourceTree = "<group>"; };
+		F10000000000000000000025 /* PreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacConvert/Views/PreviewSupport.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		PH1000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		PH1000000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000011 /* XCTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				G10000000000000000000002 /* MacConvert */,
+				G10000000000000000000003 /* MacConvertTests */,
+				G10000000000000000000004 /* Frameworks */,
+				G10000000000000000000005 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G10000000000000000000002 /* MacConvert */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000001 /* MacConvertApp.swift */,
+				F10000000000000000000002 /* ConversionProfile.swift */,
+				F10000000000000000000003 /* ConversionJob.swift */,
+				F10000000000000000000004 /* AppSettings.swift */,
+				F10000000000000000000005 /* AppModel.swift */,
+				F10000000000000000000006 /* FinderService.swift */,
+				F10000000000000000000007 /* MainWindowView.swift */,
+				F10000000000000000000008 /* OutputProfileView.swift */,
+				F10000000000000000000009 /* DropZoneView.swift */,
+				F1000000000000000000000A /* JobHistoryView.swift */,
+				F1000000000000000000000B /* JobRowView.swift */,
+				F1000000000000000000000C /* FooterView.swift */,
+				F1000000000000000000000D /* JobDetailsView.swift */,
+				F1000000000000000000000E /* CustomEncodingView.swift */,
+				F1000000000000000000000F /* SettingsView.swift */,
+				F10000000000000000000014 /* FFmpegCatalog.swift */,
+				F10000000000000000000015 /* FFmpegRunner.swift */,
+				F10000000000000000000016 /* FormatSupportView.swift */,
+				F10000000000000000000017 /* ffmpeg */,
+				F10000000000000000000018 /* ffprobe */,
+				F10000000000000000000019 /* COPYING.LGPLv2.1.txt */,
+				F10000000000000000000020 /* FFmpeg-LICENSE.md */,
+				F10000000000000000000021 /* COPYING.GPLv3.txt */,
+				F10000000000000000000022 /* LOCAL-NONREDISTRIBUTABLE.txt */,
+				F10000000000000000000023 /* ConversionWorker.swift */,
+				F10000000000000000000024 /* Assets.xcassets */,
+				F10000000000000000000025 /* PreviewSupport.swift */,
+			);
+			name = MacConvert;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000003 /* MacConvertTests */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000010 /* MacConvertTests.swift */,
+			);
+			name = MacConvertTests;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000004 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000013 /* XCTest.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		G10000000000000000000005 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000011 /* MacConvert.app */,
+				F10000000000000000000012 /* MacConvertTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		T10000000000000000000001 /* MacConvert */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CL10000000000000000000002 /* Build configuration list for PBXNativeTarget "MacConvert" */;
+			buildPhases = (
+				PH1000000000000000000002 /* Sources */,
+				PH1000000000000000000001 /* Frameworks */,
+				PH1000000000000000000003 /* Resources */,
+				PH1000000000000000000007 /* Embed FFmpeg Tools */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MacConvert;
+			productName = MacConvert;
+			productReference = F10000000000000000000011 /* MacConvert.app */;
+			productType = "com.apple.product-type.application";
+		};
+		T10000000000000000000002 /* MacConvertTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CL10000000000000000000003 /* Build configuration list for PBXNativeTarget "MacConvertTests" */;
+			buildPhases = (
+				PH1000000000000000000005 /* Sources */,
+				PH1000000000000000000004 /* Frameworks */,
+				PH1000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MacConvertTests;
+			productName = MacConvertTests;
+			productReference = F10000000000000000000012 /* MacConvertTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		P10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					T10000000000000000000001 = { CreatedOnToolsVersion = 26.6; };
+					T10000000000000000000002 = { CreatedOnToolsVersion = 26.6; };
+				};
+			};
+			buildConfigurationList = CL10000000000000000000001 /* Build configuration list for PBXProject "MacConvert" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = G10000000000000000000001;
+			productRefGroup = G10000000000000000000005 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				T10000000000000000000001 /* MacConvert */,
+				T10000000000000000000002 /* MacConvertTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		PH1000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (
+			B1000000000000000000001C /* Assets.xcassets in Resources */,
+			B10000000000000000000017 /* COPYING.LGPLv2.1.txt in Resources */,
+			B10000000000000000000018 /* FFmpeg-LICENSE.md in Resources */,
+			B10000000000000000000019 /* COPYING.GPLv3.txt in Resources */,
+			B1000000000000000000001A /* LOCAL-NONREDISTRIBUTABLE.txt in Resources */,
+		); runOnlyForDeploymentPostprocessing = 0; };
+		PH1000000000000000000006 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		PH1000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000001 /* MacConvertApp.swift in Sources */,
+				B10000000000000000000002 /* ConversionProfile.swift in Sources */,
+				B10000000000000000000003 /* ConversionJob.swift in Sources */,
+				B10000000000000000000004 /* AppSettings.swift in Sources */,
+				B10000000000000000000005 /* AppModel.swift in Sources */,
+				B10000000000000000000006 /* FinderService.swift in Sources */,
+				B10000000000000000000007 /* MainWindowView.swift in Sources */,
+				B10000000000000000000008 /* OutputProfileView.swift in Sources */,
+				B10000000000000000000009 /* DropZoneView.swift in Sources */,
+				B1000000000000000000000A /* JobHistoryView.swift in Sources */,
+				B1000000000000000000000B /* JobRowView.swift in Sources */,
+				B1000000000000000000000C /* FooterView.swift in Sources */,
+				B1000000000000000000000D /* JobDetailsView.swift in Sources */,
+				B1000000000000000000000E /* CustomEncodingView.swift in Sources */,
+				B1000000000000000000000F /* SettingsView.swift in Sources */,
+				B10000000000000000000012 /* FFmpegCatalog.swift in Sources */,
+				B10000000000000000000013 /* FFmpegRunner.swift in Sources */,
+				B10000000000000000000014 /* FormatSupportView.swift in Sources */,
+				B1000000000000000000001B /* ConversionWorker.swift in Sources */,
+				B1000000000000000000001D /* PreviewSupport.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		PH1000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000010 /* MacConvertTests.swift in Sources */,
+				B20000000000000000000001 /* ConversionProfile.swift in Test Sources */,
+				B20000000000000000000002 /* ConversionJob.swift in Test Sources */,
+				B20000000000000000000003 /* AppSettings.swift in Test Sources */,
+				B20000000000000000000004 /* AppModel.swift in Test Sources */,
+				B20000000000000000000005 /* FinderService.swift in Test Sources */,
+				B20000000000000000000006 /* FFmpegCatalog.swift in Test Sources */,
+				B20000000000000000000007 /* FFmpegRunner.swift in Test Sources */,
+				B20000000000000000000008 /* ConversionWorker.swift in Test Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D10000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = T10000000000000000000001 /* MacConvert */;
+			targetProxy = C10000000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		BC10000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		BC10000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		BC10000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = MacConvert;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.james.MacConvert;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		BC10000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = MacConvert;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.james.MacConvert;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		BC10000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.james.MacConvertTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		BC10000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.james.MacConvertTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CL10000000000000000000001 /* Build configuration list for PBXProject "MacConvert" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC10000000000000000000001 /* Debug */,
+				BC10000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CL10000000000000000000002 /* Build configuration list for PBXNativeTarget "MacConvert" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC10000000000000000000003 /* Debug */,
+				BC10000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CL10000000000000000000003 /* Build configuration list for PBXNativeTarget "MacConvertTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC10000000000000000000005 /* Debug */,
+				BC10000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = P10000000000000000000001 /* Project object */;
+}
