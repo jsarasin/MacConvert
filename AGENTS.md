@@ -1,6 +1,6 @@
 # MacConvert implementation contract
 
-This file is the authoritative product and engineering specification for MacConvert. Implement the app described here unless the user explicitly changes a requirement. When requirements appear to conflict, protect the original source file first, then preserve exact filenames, then favor a native macOS interaction over a custom one.
+This file is the authoritative product and engineering specification for MacConvert. Implement the app described here unless the user explicitly changes a requirement. When requirements appear to conflict, protect the original source file first, then preserve the exact published output filename, then favor a native macOS interaction over a custom one.
 
 ## Product goal
 
@@ -12,7 +12,7 @@ Use the selected blue MacConvert icon as the default application icon: a deep-bl
 
 The app must work with files on local disks and volumes already mounted through Finder, including network volumes. It does not mount or authenticate network shares itself.
 
-The source file must remain untouched in its original location until a converted output has been created locally, validated, successfully published, and an archival copy of the original has been finalized locally. Never overwrite an existing file.
+The source file must remain untouched in its original location until a converted output has been created locally, validated, successfully published, and checked at the destination. By default, delete the source after those checks without retaining a backup. Backups are opt-in; when enabled for a job, finalize and verify its archived original before deleting the source. Never overwrite an existing file.
 
 ## Non-negotiable behavior
 
@@ -71,7 +71,7 @@ Lay out the main window from top to bottom:
    - **Audio:** Container, Audio Encoding, Quality.
 2. A prominent Finder drop zone and `Add Files…` button.
 3. The job-history list immediately below the drop area, filling the remaining window.
-4. A narrow footer showing a summary such as `8 jobs • 1 converting • 2 warnings`, plus `Show Originals` and `Clear History`. Keep `Show Temporary` in the menu bar, not in the footer.
+4. A narrow footer showing a summary such as `8 jobs • 1 converting • 2 warnings`, plus `Clear History` and `Show Originals` when a backup folder is available. Keep `Show Temporary` in the menu bar, not in the footer.
 
 Present the output-profile band as one native `GroupBox` titled `Output formats`. Place each `Video`, `Picture`, and `Audio` section label above its left-aligned row of controls, and separate the three sections with horizontal dividers. Controls use stable, compact explicit widths and small gaps instead of expanding or changing width with the selected value. Keep Picture and Audio substantially narrower than Video. Keep the drop zone to the minimum practical vertical height, and give all remaining vertical space to the job-history list.
 
@@ -140,7 +140,7 @@ All three quality pop-up buttons contain:
 - Preserve resolution, frame rate, channel layout, sample rate, bit depth, alpha, color information, metadata, chapters, and subtitles where the destination format allows.
 - Never upscale, interpolate frames, normalize audio, sharpen, denoise, or otherwise “enhance” automatically.
 - Be honest in the UI: lossy-to-lossy conversion cannot be bit-perfect. Show a conversion-plan summary such as `Video copied without re-encoding` or `VP9 converted to H.264 at high quality`.
-- The archived original is always a byte-for-byte copy; output-quality settings never modify it.
+- When backups are enabled, the archived original is always a byte-for-byte copy; output-quality settings never modify it.
 
 For lossless picture targets such as PNG, display `Lossless` as the effective quality. Compression effort may change speed and file size but never decoded pixels. Converting a lossy WebP or JPEG to PNG cannot restore detail already lost in the source.
 
@@ -202,31 +202,26 @@ Before copying locally, validate the proposed target filename against the destin
 - The required extension shown separately and kept fixed.
 - Cancel and Continue buttons.
 
-The new basename applies only to that target output and job. Do not rename the source or archived original.
+The new basename applies only to that target output and job. Do not rename the source. The archived original independently uses the timestamped local-original naming policy below.
 
-### Collision in the temporary directory
+### Timestamped local original names
 
-If the incoming original’s exact filename already exists in the configured temporary directory:
+When backups are enabled, name the temporary local source copy and archived original by inserting the job's Unix epoch timestamp in milliseconds between the exact original basename and extension, for example `myvideo_1786401234567.webm`. Use the same timestamped filename in both locations when archiving. Without backups, use a short internal source filename in the isolated job directory. Neither internal naming policy affects the converted output filename.
 
-1. Calculate SHA-256 for the incoming source and existing temporary file.
-2. If hashes match, fail with exactly `Exact file already converted` and do not convert.
-3. If hashes differ, rename the previously existing temporary file by appending a filesystem-safe local timestamp before its extension, for example `myvideo 2026-08-09 14.30.52.webm`.
-4. Copy the new input under its unchanged original filename and continue normally.
-5. If the new job succeeds, mark it `Successful with warning` and include `Different file with the same filename existed` in its warning details, along with a link to the renamed previous file.
-
-If an extremely unlikely timestamp collision occurs, add subsecond precision or a short identifier to the timestamp; never overwrite.
+Before copying, verify that the timestamped name does not exist in the job's temporary directory or, when backups are enabled, the archive root. If an exact timestamped collision occurs, fail clearly and never overwrite either file.
 
 ## File locations
 
 Default locations:
 
 - Converted output: beside the original source file.
-- Archived originals root: `~/MacConverted/`.
-- Temporary working directory: `~/MacConverted/temp/`.
+- Original handling: delete the source after the converted output is published and verified; backups are off by default, including when migrating older preferences.
+- Archived originals root: none by default. Saving a backup requires opting in and choosing a folder in Settings.
+- Temporary working directory: an app-owned `MacConvert` directory inside `FileManager.default.temporaryDirectory`, with an isolated subdirectory for each job. Ignore legacy saved temporary paths.
 
-Successful originals must not remain in `temp`. Store each archived original directly in the configured archive root while preserving its original filename exactly. Do not create date, job, source-location, or other hierarchy beneath the archive root; with the default locations, `temp` is the only permitted app-created subfolder of `~/MacConverted/`. If the exact archive filename already exists, fail the job before copying or conversion rather than overwriting, renaming, or creating a nested folder. `Show Originals` opens the archive root; `Show Temporary` opens the temporary root.
+Do not create `~/MacConverted/` or any originals folder by default. Clean up each job's temporary source, converted output, and diagnostics after success or failure; retain recovery files if needed to restore a source. When backups are enabled, store each archived original directly in the chosen archive root using its timestamped local-original filename, without a containing hierarchy. `Show Originals` opens an existing backup folder; `Show Temporary` opens the operating-system temporary working location.
 
-All three location policies are configurable in Settings. A fixed output directory is allowed as an alternative to “Beside source.” Archive and temporary locations should be local writable volumes; reject or strongly prevent selecting a network volume for these safety-critical working locations. Use standard folder panels, not a custom file browser. Store security-scoped bookmarks for selected folders to make the design future-proof even though the initial direct-distribution build is not sandboxed.
+Output location and optional original backups are configurable in Settings; temporary working files always use the operating system's temporary location. A fixed output directory is allowed as an alternative to “Beside source.” Optional archive locations must be local writable folders; reject network volumes. Use standard folder panels, not a custom file browser. Store security-scoped bookmarks for selected folders to make the design future-proof even though the initial direct-distribution build is not sandboxed. Capture the original-handling policy and relevant paths when adding a job so later Settings changes do not affect queued jobs.
 
 ## Authoritative per-job transaction
 
@@ -234,21 +229,21 @@ Represent the transaction explicitly as durable job phases. Never infer completi
 
 1. Resolve the dropped URL and capture the current conversion profile and location settings in the job.
 2. Verify that the source exists, is readable, is a regular file, is not already the selected target format, and is stable enough to process. Verify that its parent directory is writable because output publication and eventual source deletion require it.
-3. Resolve the provisional target URL and archive URL. Verify that neither destination exists and that the provisional target filename is valid. If a rename can fix a target-name error, enter `Awaiting Filename` and show the correction sheet.
+3. Resolve the provisional target URL and, only when backups are enabled, the timestamped archive URL. Verify that neither destination exists and that the provisional target filename is valid. If a rename can fix a target-name error, enter `Awaiting Filename` and show the correction sheet.
 4. Inspect the source with ffprobe and reject structurally invalid, corrupt-at-probe-time, unsupported, or empty media. Record all streams, chapters, attachments, metadata, duration, dimensions, frame rate, color information, audio layout, frame count, per-frame timing, and animation loop behavior needed for later comparison. Resolve `PNG / APNG` to PNG for a still source or APNG for an animated source, then re-resolve and validate the exact target URL. If an animated picture has a still-only selected target, fail immediately with `Selected output format does not support animation` before copying or conversion.
-5. Ensure local free space can hold the source copy, estimated converted output, and a safety reserve. Create the configured temporary directory if necessary.
-6. Apply the temporary same-name collision/checksum procedure above.
-7. Copy the original source into the temporary directory. Convert from this local copy, never directly from the network/source URL. Confirm the copied file exists and has the expected byte count before conversion.
+5. Ensure local free space can hold the source copy, estimated converted output, and a safety reserve. Create an isolated job directory in the operating-system temporary location.
+6. Resolve the internal filename for the temporary source copy and, when backups are enabled, the shared timestamped archive filename. Verify that it collides with neither applicable location.
+7. Copy the original source into the isolated temporary directory under its internal filename. Convert from this local copy, never directly from the network/source URL. Confirm the copied file exists and has the expected byte count before conversion.
 8. Convert the local source copy to the selected target in the same temporary directory. Give partial output an app-owned temporary name until FFmpeg finishes.
 9. If conversion fails or is cancelled, record the diagnostic, delete both the temporary source copy and partial/temporary converted output, remove any app-created partial destination if safe and possible, mark the job Failed or Cancelled, stop this job, and continue the queue.
 10. If FFmpeg exits successfully, first validate the **local** output before any network transfer. Run ffprobe against it, verify expected container/streams/dimensions/duration, and perform a full local decode check with FFmpeg using a null output. Compare input and output manifests to determine expected omissions and warnings.
 11. Publish the validated converted file to the configured output location. For a different volume, treat “move” as copy plus deletion. Prefer an app-owned hidden sibling staging file and a same-directory rename so the final filename never appears partially copied. Never replace an existing target.
 12. Perform a lightweight post-publication check: confirm the destination exists, has the expected byte count, is readable, and can be probed. The full media validation already happened locally to avoid an unnecessary full network reread.
-13. Finalize the temporary source copy directly in the configured archive root, retaining the exact original filename. Confirm it exists and has the expected byte count. Never create a containing directory for an archived original.
-14. Only after the published output and archived original both pass their checks, delete the original source from its original directory.
+13. If backups were enabled when the job was added, finalize the temporary source copy directly in the configured archive root, retaining the shared timestamped filename. Confirm it exists and matches the source copy. Never create a containing directory for an archived original. Skip this phase entirely by default.
+14. Only after the published output and any requested archived original pass their checks, confirm the source has not changed, check cancellation, and delete the original source from its original directory.
 15. Clean the app’s remaining temporary artifacts and mark the job Successful or Successful with Warning.
 
-If any step after local conversion but before source deletion fails, keep the source in its original location. Best-effort roll back only files created by this job; never delete or rename an unrelated preexisting item. Retain enough durable journal state to reconcile a crash on next launch. If the source was already deleted but final cleanup/status persistence fails, recovery must detect the valid output and archived original and complete without converting again.
+If any step after local conversion but before source deletion fails, keep the source in its original location. Best-effort roll back only files created by this job; never delete or rename an unrelated preexisting item. Retain enough durable journal state to reconcile a crash on next launch. If the source was already deleted but final cleanup/status persistence fails, recovery must detect the valid output and any requested archived original and complete without converting again; a backup is not required for jobs that opted out.
 
 ## FFmpeg execution details
 
@@ -299,7 +294,7 @@ Suggested semantic presentation:
 - Failed: system red plus error symbol and text.
 - Cancelled: secondary/gray plus cancellation symbol and text.
 
-Double-clicking a row opens its job-details sheet. Also support selection plus `Command-I`, an Info context-menu item, and an accessible labeled info control if included. The sheet shows:
+Double-clicking a row opens its job-details sheet. Also support selection plus `Command-I`, an Info context-menu item, and an accessible labeled info control if included. Each row's context menu includes `Show Original` when the live source or finalized archived original exists, preferring the archived original once archival has begun, and `Show Replacement` only when the published converted file actually exists. Both commands select the resolved file in Finder. The sheet shows:
 
 - Current/final state and timestamps.
 - Input, temporary, archived-original, and output URLs when applicable.
@@ -330,8 +325,8 @@ Open Settings from the native App menu and `Command-,`. Use native panes such as
 ### Locations
 
 - Converted output: Beside Source (default) or a chosen output folder.
-- Archived originals: `~/MacConverted/` by default.
-- Temporary working files: `~/MacConverted/temp/` by default.
+- Save a backup of originals: off by default; choose a local folder when enabled.
+- Temporary working files: managed by macOS, with no custom folder selection.
 - Each row has `Choose…`, `Show in Finder`, and `Restore Default` where appropriate.
 - Show write-access and available-space state. Validate a new location before saving it and retain the previous valid value when validation fails.
 
@@ -367,7 +362,7 @@ Open Settings from the native App menu and `Command-,`. Use native panes such as
 - Persist preferences with `UserDefaults`/`@AppStorage` where appropriate, but use typed settings models and migration/versioning.
 - Persist job history and a minimal transaction journal under Application Support, not the media temporary directory.
 - Write journal phase transitions atomically before destructive steps.
-- On launch, reconcile incomplete jobs by checking source, local copy, output, and archive URLs. Never assume a missing source means failure; it may indicate the final deletion succeeded before status persistence.
+- On launch, reconcile incomplete jobs by checking source, local copy, output, and any requested archive URLs. Never assume a missing source means failure; it may indicate the final deletion succeeded before status persistence. Do not require an archive for jobs with backups disabled.
 - Keep logs bounded by size/age. Clear History removes associated persisted job/log records but not media.
 - Do not persist security-scoped access tokens longer than necessary except configured folder bookmarks.
 
@@ -411,7 +406,7 @@ Add unit, integration, UI, packaging, and manual network tests. At minimum cover
 - Local free-space exhaustion, archive-space exhaustion, target read-only, source parent read-only, and permission changes mid-job.
 - SMB/network disconnect during source copy, output publication, destination validation, and source deletion; reconnect and retry/recovery.
 - Cancellation during every phase and app termination/crash immediately before and after each journaled file mutation.
-- Confirm that the original source is never deleted before validated output and finalized archive exist.
+- Confirm that the original source is never deleted before validated output exists and, only for jobs with backups enabled, the archive has been finalized. Verify default conversions create no originals folder and clean their operating-system temporary files.
 - Confirm that failure cleanup only removes app-owned temporary/partial files.
 - Unicode, composed/decomposed Unicode, spaces, emoji, very long names, and filenames with network-incompatible characters.
 - Multiple dropped files, queue continuation after failure, sequential default, changed settings while jobs are queued, retry, Clear History, and clickable Finder paths.

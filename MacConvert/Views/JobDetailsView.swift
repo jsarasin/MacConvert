@@ -28,6 +28,15 @@ struct JobDetailsView: View {
                 pathRow("Input", url: job.sourceURL)
                 if let targetURL = job.targetURL { pathRow("Output", url: targetURL) }
                 if let archiveURL = job.archiveURL { pathRow("Original", url: archiveURL) }
+                if let locations = job.locations {
+                    GridRow {
+                        Text("Original handling")
+                            .foregroundStyle(.secondary)
+                        Text(locations.archiveRoot == nil
+                             ? "Delete after the converted output is verified"
+                             : "Save a backup before deleting the source")
+                    }
+                }
             }
 
             if !job.warnings.isEmpty {

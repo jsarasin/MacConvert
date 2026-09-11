@@ -22,7 +22,20 @@ struct JobHistoryView: View {
                         .onEnded { model.inspect(job) }
                 )
                 .contextMenu {
+                    let locations = FinderService.existingLocations(for: job)
                     Button("Inspect") { model.inspect(job) }
+                    if !locations.isEmpty {
+                        Divider()
+                    }
+                    if let originalURL = locations.original {
+                        Button("Show Original") { FinderService.reveal(originalURL) }
+                    }
+                    if let replacementURL = locations.replacement {
+                        Button("Show Replacement") { FinderService.reveal(replacementURL) }
+                    }
+                    if (job.state == .failed || job.state == .cancelled) || !job.state.isFinished {
+                        Divider()
+                    }
                     if job.state == .failed || job.state == .cancelled {
                         Button("Retry") { model.retry(job.id) }
                     }

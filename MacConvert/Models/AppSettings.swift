@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-enum OutputDestinationMode: String, CaseIterable, Identifiable, Sendable {
+enum OutputDestinationMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case besideSource
     case chosenFolder
 
@@ -31,8 +31,11 @@ final class AppSettings {
     @ObservationIgnored private let defaults: UserDefaults
 
     var showAllSupportedFormats: Bool { didSet { save() } }
+    var backupOriginals: Bool { didSet { save() } }
     var archivePath: String { didSet { save() } }
-    var temporaryPath: String { didSet { save() } }
+    var temporaryPath: String {
+        FileManager.default.temporaryDirectory.appendingPathComponent("MacConvert", isDirectory: true).path
+    }
     var outputPath: String { didSet { save() } }
     var outputDestinationMode: OutputDestinationMode { didSet { save() } }
     var startImmediately: Bool { didSet { save() } }
@@ -49,12 +52,11 @@ final class AppSettings {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let defaultArchive = URL(fileURLWithPath: home).appendingPathComponent("MacConverted").path
-        let defaultTemporary = URL(fileURLWithPath: defaultArchive).appendingPathComponent("temp").path
 
         showAllSupportedFormats = defaults.bool(forKey: "showAllSupportedFormats")
-        archivePath = defaults.string(forKey: "archivePath") ?? defaultArchive
-        temporaryPath = defaults.string(forKey: "temporaryPath") ?? defaultTemporary
+        backupOriginals = defaults.bool(forKey: "backupOriginals")
+        archivePath = defaults.string(forKey: "archivePath") ?? ""
+        defaults.removeObject(forKey: "temporaryPath")
         outputPath = defaults.string(forKey: "outputPath") ?? home
         outputDestinationMode = OutputDestinationMode(rawValue: defaults.string(forKey: "outputDestinationMode") ?? "") ?? .besideSource
         startImmediately = defaults.object(forKey: "startImmediately") as? Bool ?? true
@@ -70,16 +72,15 @@ final class AppSettings {
     }
 
     func restoreLocationDefaults() {
-        let archive = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("MacConverted")
-        archivePath = archive.path
-        temporaryPath = archive.appendingPathComponent("temp").path
+        backupOriginals = false
+        archivePath = ""
         outputDestinationMode = .besideSource
     }
 
     private func save() {
         defaults.set(showAllSupportedFormats, forKey: "showAllSupportedFormats")
+        defaults.set(backupOriginals, forKey: "backupOriginals")
         defaults.set(archivePath, forKey: "archivePath")
-        defaults.set(temporaryPath, forKey: "temporaryPath")
         defaults.set(outputPath, forKey: "outputPath")
         defaults.set(outputDestinationMode.rawValue, forKey: "outputDestinationMode")
         defaults.set(startImmediately, forKey: "startImmediately")

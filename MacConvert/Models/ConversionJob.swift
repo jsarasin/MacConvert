@@ -71,11 +71,18 @@ enum JobState: String, Codable, Hashable, Sendable {
     }
 }
 
+enum SameFormatPolicy: String, Codable, Hashable, Sendable {
+    case reject
+    case replaceSource
+}
+
 struct ConversionJob: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     let sourceURL: URL
     let mediaKind: MediaKind
     let profile: ConversionProfile
+    let sameFormatPolicy: SameFormatPolicy
+    let locations: ConversionLocations?
     let createdAt: Date
     var sourceFileSizeBytes: Int64?
     var targetURL: URL?
@@ -86,11 +93,19 @@ struct ConversionJob: Identifiable, Codable, Hashable, Sendable {
     var warnings: [String]
     var technicalLog: String
 
-    init(sourceURL: URL, mediaKind: MediaKind, profile: ConversionProfile) {
+    init(
+        sourceURL: URL,
+        mediaKind: MediaKind,
+        profile: ConversionProfile,
+        sameFormatPolicy: SameFormatPolicy = .reject,
+        locations: ConversionLocations? = nil
+    ) {
         self.id = UUID()
         self.sourceURL = sourceURL
         self.mediaKind = mediaKind
         self.profile = profile
+        self.sameFormatPolicy = sameFormatPolicy
+        self.locations = locations
         self.createdAt = Date()
         self.sourceFileSizeBytes = nil
         self.state = .queued

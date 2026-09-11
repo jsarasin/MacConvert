@@ -17,6 +17,27 @@ enum FFmpegToolKind {
     var displayName: String { self == .ffmpeg ? "FFmpeg" : "ffprobe" }
 }
 
+struct SameFormatWarning: Identifiable, Equatable {
+    let id: UUID
+    let batchID: UUID
+    let sourceURL: URL
+    let targetFormatName: String
+    let remainingFileCount: Int
+    let backsUpOriginal: Bool
+}
+
+enum SameFormatDecision {
+    case skipAll
+    case replaceAll
+    case skipThisFile
+    case replaceThisFile
+}
+
+private struct PendingSameFormatBatch {
+    let id: UUID
+    var jobs: [ConversionJob]
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -47,8 +68,10 @@ final class AppModel {
     var selectedJobID: UUID?
     var presentedJob: ConversionJob?
     var customSheetKind: CustomSheetKind?
+    var sameFormatWarning: SameFormatWarning?
     var isDropTargeted = false
     var queueIsPaused = false
+    @ObservationIgnored private var pendingSameFormatBatches: [PendingSameFormatBatch] = []
 
     init(settings: AppSettings = AppSettings()) {
         self.settings = settings
@@ -232,23 +255,87 @@ final class AppModel {
     }
 
     func addFiles(_ urls: [URL]) {
-        for url in urls where !jobs.contains(where: { $0.sourceURL == url && !$0.state.isFinished }) {
+        let profile = currentProfile
+        let locationSnapshot = Result { try captureLocations() }
+        let batchID = UUID()
+        var pendingJobs: [ConversionJob] = []
+
+        for url in urls where !hasUnfinishedOrPendingJob(for: url) {
             let kind = classify(url)
-            var job = ConversionJob(sourceURL: url, mediaKind: kind, profile: currentProfile)
+            var job = ConversionJob(
+                sourceURL: url, mediaKind: kind, profile: profile,
+                locations: try? locationSnapshot.get()
+            )
+
+            if case .failure(let error) = locationSnapshot {
+                job.state = .failed
+                job.statusDetail = error.localizedDescription
+                jobs.append(job)
+                loadSourceFileSize(for: job.id, from: url)
+                continue
+            }
 
             if kind == .unsupported {
                 job.state = .failed
                 job.statusDetail = "Unsupported file type"
-            } else if isAlreadyTargetFormat(url: url, kind: kind) {
-                job.state = .failed
-                job.statusDetail = "File is already in the selected output format"
+            } else if isAlreadyTargetFormat(url: url, kind: kind, profile: profile) {
+                if profile.quality(for: kind) == .preserveQuality {
+                    job.state = .failed
+                    job.statusDetail = "File is already in the selected output format"
+                } else {
+                    pendingJobs.append(ConversionJob(
+                        sourceURL: url,
+                        mediaKind: kind,
+                        profile: profile,
+                        sameFormatPolicy: .replaceSource,
+                        locations: job.locations
+                    ))
+                    continue
+                }
             }
 
             jobs.append(job)
             loadSourceFileSize(for: job.id, from: url)
         }
+        if !pendingJobs.isEmpty {
+            pendingSameFormatBatches.append(.init(id: batchID, jobs: pendingJobs))
+            presentNextSameFormatWarningIfNeeded()
+        }
         if settings.startImmediately {
             startQueuedJobs()
+        }
+    }
+
+    func resolveSameFormatWarning(_ warningID: UUID, decision: SameFormatDecision) {
+        guard sameFormatWarning?.id == warningID,
+              let batchIndex = pendingSameFormatBatches.firstIndex(where: { $0.id == sameFormatWarning?.batchID }) else {
+            return
+        }
+
+        sameFormatWarning = nil
+        switch decision {
+        case .skipAll:
+            pendingSameFormatBatches.remove(at: batchIndex)
+        case .replaceAll:
+            let approvedJobs = pendingSameFormatBatches.remove(at: batchIndex).jobs
+            appendApprovedSameFormatJobs(approvedJobs)
+        case .skipThisFile:
+            pendingSameFormatBatches[batchIndex].jobs.removeFirst()
+            if pendingSameFormatBatches[batchIndex].jobs.isEmpty {
+                pendingSameFormatBatches.remove(at: batchIndex)
+            }
+        case .replaceThisFile:
+            let approvedJob = pendingSameFormatBatches[batchIndex].jobs.removeFirst()
+            if pendingSameFormatBatches[batchIndex].jobs.isEmpty {
+                pendingSameFormatBatches.remove(at: batchIndex)
+            }
+            appendApprovedSameFormatJobs([approvedJob])
+        }
+
+        if settings.startImmediately { startQueuedJobs() }
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.presentNextSameFormatWarningIfNeeded()
         }
     }
 
@@ -276,7 +363,13 @@ final class AppModel {
     }
 
     func cancel(_ id: UUID) {
-        jobTasks[id]?.cancel()
+        if let task = jobTasks[id] {
+            task.cancel()
+            updateJob(id) { job in
+                job.statusDetail = "Cancelling…"
+            }
+            return
+        }
         updateJob(id) { job in
             guard !job.state.isFinished else { return }
             job.state = .cancelled
@@ -298,6 +391,8 @@ final class AppModel {
             job.statusDetail = "Waiting to be inspected"
             job.warnings = []
             job.technicalLog = ""
+            job.targetURL = nil
+            job.archiveURL = nil
         }
         startQueuedJobs()
     }
@@ -332,7 +427,28 @@ final class AppModel {
     }
 
     func showOriginals() {
+        guard canShowOriginals else { return }
         FinderService.reveal(URL(fileURLWithPath: settings.archivePath, isDirectory: true))
+    }
+
+    var canShowOriginals: Bool {
+        guard !settings.archivePath.isEmpty else { return false }
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: settings.archivePath, isDirectory: &isDirectory)
+            && isDirectory.boolValue
+    }
+
+    private func captureLocations() throws -> ConversionLocations {
+        if settings.backupOriginals && settings.archivePath.isEmpty {
+            throw ConversionWorkerError.failed("Choose a backup folder in Settings, then add the files again")
+        }
+        return ConversionLocations(
+            temporaryRoot: URL(fileURLWithPath: settings.temporaryPath, isDirectory: true),
+            archiveRoot: settings.backupOriginals
+                ? URL(fileURLWithPath: settings.archivePath, isDirectory: true) : nil,
+            outputMode: settings.outputDestinationMode,
+            outputRoot: URL(fileURLWithPath: settings.outputPath, isDirectory: true)
+        )
     }
 
     func chooseVideoQuality(_ quality: QualityPreset) {
@@ -375,12 +491,9 @@ final class AppModel {
                     customFFmpegPath: settings.customFFmpegPath,
                     customFFprobePath: settings.customFFprobePath
                 )
-                let locations = ConversionLocations(
-                    temporaryRoot: URL(fileURLWithPath: settings.temporaryPath, isDirectory: true),
-                    archiveRoot: URL(fileURLWithPath: settings.archivePath, isDirectory: true),
-                    outputMode: settings.outputDestinationMode,
-                    outputRoot: URL(fileURLWithPath: settings.outputPath, isDirectory: true)
-                )
+                guard let locations = queuedJob.locations else {
+                    throw ConversionWorkerError.failed("The job has no saved file locations. Check Settings and add the file again")
+                }
                 updateJob(queuedJob.id) { job in
                     job.state = .inspecting
                     job.statusDetail = "Preparing to inspect"
@@ -413,7 +526,6 @@ final class AppModel {
                 self.apply(update, to: job.id)
             }
             updateJob(job.id) { current in
-                guard current.state != .cancelled else { return }
                 current.targetURL = result.targetURL
                 current.archiveURL = result.archiveURL
                 current.warnings = result.warnings
@@ -519,18 +631,59 @@ final class AppModel {
         }
     }
 
-    private func isAlreadyTargetFormat(url: URL, kind: MediaKind) -> Bool {
+    private func isAlreadyTargetFormat(
+        url: URL,
+        kind: MediaKind,
+        profile: ConversionProfile
+    ) -> Bool {
         let fileExtension = url.pathExtension.lowercased()
         switch kind {
         case .video:
-            return fileExtension == selectedVideoContainer.fileExtension
+            return fileExtension == profile.videoContainer.fileExtension
         case .picture:
-            return fileExtension == selectedPictureFormat.stillExtension
-                || fileExtension == selectedPictureFormat.animatedExtension
+            return fileExtension == profile.pictureFormat.stillExtension
+                || fileExtension == profile.pictureFormat.animatedExtension
         case .audio:
-            return fileExtension == selectedAudioContainer.fileExtension
+            return fileExtension == profile.audioContainer.fileExtension
         case .unsupported:
             return false
+        }
+    }
+
+    private func hasUnfinishedOrPendingJob(for url: URL) -> Bool {
+        jobs.contains { $0.sourceURL == url && !$0.state.isFinished }
+            || pendingSameFormatBatches.contains { batch in
+                batch.jobs.contains { $0.sourceURL == url }
+            }
+    }
+
+    private func appendApprovedSameFormatJobs(_ approvedJobs: [ConversionJob]) {
+        for job in approvedJobs {
+            jobs.append(job)
+            loadSourceFileSize(for: job.id, from: job.sourceURL)
+        }
+    }
+
+    private func presentNextSameFormatWarningIfNeeded() {
+        guard sameFormatWarning == nil,
+              let batch = pendingSameFormatBatches.first,
+              let job = batch.jobs.first else { return }
+        sameFormatWarning = SameFormatWarning(
+            id: UUID(),
+            batchID: batch.id,
+            sourceURL: job.sourceURL,
+            targetFormatName: targetFormatName(for: job),
+            remainingFileCount: batch.jobs.count,
+            backsUpOriginal: job.locations?.archiveRoot != nil
+        )
+    }
+
+    private func targetFormatName(for job: ConversionJob) -> String {
+        switch job.mediaKind {
+        case .video: job.profile.videoContainer.displayName
+        case .picture: job.profile.pictureFormat.displayName
+        case .audio: job.profile.audioContainer.displayName
+        case .unsupported: "the selected output"
         }
     }
 

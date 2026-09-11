@@ -147,4 +147,13 @@ struct ConversionProfile: Codable, Hashable, Sendable {
         audioOutputEncoder: .aac,
         audioQuality: .preserveQuality
     )
+
+    func quality(for mediaKind: MediaKind) -> QualityPreset {
+        switch mediaKind {
+        case .video: videoQuality
+        case .picture: pictureQuality
+        case .audio: audioQuality
+        case .unsupported: .preserveQuality
+        }
+    }
 }

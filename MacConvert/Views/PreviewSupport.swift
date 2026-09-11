@@ -7,8 +7,8 @@ enum PreviewFixtures {
         let defaults = UserDefaults(suiteName: "MacConvert.CanvasPreviews")!
         let settings = AppSettings(defaults: defaults)
         settings.startImmediately = false
-        settings.archivePath = "/Users/Shared/MacConverted"
-        settings.temporaryPath = "/Users/Shared/MacConverted/temp"
+        settings.backupOriginals = false
+        settings.archivePath = ""
 
         let model = AppModel(settings: settings)
         model.ffmpegCatalog = catalog
@@ -95,7 +95,6 @@ enum PreviewFixtures {
             case .unsupported: outputExtension = "output"
             }
             job.targetURL = URL(fileURLWithPath: "/Volumes/Media/\(basename).\(outputExtension)")
-            job.archiveURL = URL(fileURLWithPath: "/Users/Shared/MacConverted/\(name)")
         }
         if !warnings.isEmpty {
             job.technicalLog = "The output was validated. Some source data could not be represented by the selected output format."

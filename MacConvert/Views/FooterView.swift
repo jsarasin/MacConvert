@@ -18,7 +18,9 @@ struct FooterView: View {
 
             Spacer()
 
-            Button("Show Originals") { model.showOriginals() }
+            if model.canShowOriginals {
+                Button("Show Originals") { model.showOriginals() }
+            }
             Button("Clear History") { model.clearHistory() }
                 .disabled(model.finishedJobCount == 0)
         }

@@ -26,6 +26,7 @@ struct SettingsView: View {
 
 private struct LocationsSettingsView: View {
     @Bindable var settings: AppSettings
+    @State private var locationError: String?
 
     var body: some View {
         Form {
@@ -43,18 +44,46 @@ private struct LocationsSettingsView: View {
                 }
             }
 
-            Section("Local Storage") {
-                locationRow(title: "Archived originals", path: settings.archivePath) {
-                    chooseFolder(currentPath: settings.archivePath) { settings.archivePath = $0 }
+            Section("Original Files") {
+                Toggle("Keep a backup of original files", isOn: $settings.backupOriginals)
+                Text(settings.backupOriginals
+                     ? "Originals are copied to the backup folder before the source files are deleted."
+                     : "Source files are deleted after their converted replacements are validated. No backup is kept.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                if settings.backupOriginals {
+                    locationRow(title: "Backup folder", path: settings.archivePath) {
+                        chooseFolder(currentPath: settings.archivePath, requireLocal: true) { settings.archivePath = $0 }
+                    }
+                    if settings.archivePath.isEmpty {
+                        Text("Choose a local backup folder before adding files.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                locationRow(title: "Temporary files", path: settings.temporaryPath) {
-                    chooseFolder(currentPath: settings.temporaryPath) { settings.temporaryPath = $0 }
-                }
+            }
+
+            Section("Temporary Files") {
+                LabeledContent("Working folder", value: "Provided by macOS")
+                Text("MacConvert uses the system temporary folder and removes working files after each job.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let locationError {
+                Text(locationError)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .accessibilityLabel("Folder selection error: \(locationError)")
             }
 
             HStack {
                 Spacer()
-                Button("Restore Defaults") { settings.restoreLocationDefaults() }
+                Button("Restore Defaults") {
+                    settings.restoreLocationDefaults()
+                    locationError = nil
+                }
             }
         }
         .formStyle(.grouped)
@@ -65,26 +94,37 @@ private struct LocationsSettingsView: View {
     private func locationRow(title: String, path: String, choose: @escaping () -> Void) -> some View {
         LabeledContent(title) {
             HStack {
-                Text(path)
+                Text(path.isEmpty ? "No folder selected" : path)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .frame(maxWidth: 280, alignment: .trailing)
                 Button("Show") { FinderService.reveal(URL(fileURLWithPath: path, isDirectory: true)) }
+                    .disabled(path.isEmpty || !FileManager.default.fileExists(atPath: path))
                 Button("Choose…", action: choose)
             }
         }
     }
 
-    private func chooseFolder(currentPath: String, onChoose: (String) -> Void) {
+    private func chooseFolder(currentPath: String, requireLocal: Bool = false, onChoose: (String) -> Void) {
         let panel = NSOpenPanel()
         panel.title = "Choose Folder"
         panel.prompt = "Choose"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.directoryURL = URL(fileURLWithPath: currentPath, isDirectory: true)
+        if !currentPath.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: currentPath, isDirectory: true)
+        }
         if panel.runModal() == .OK, let url = panel.url {
+            if requireLocal {
+                guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isWritableKey, .volumeIsLocalKey]),
+                      values.isDirectory == true, values.isWritable == true, values.volumeIsLocal == true else {
+                    locationError = "Choose a writable folder on a local disk for original backups."
+                    return
+                }
+            }
+            locationError = nil
             onChoose(url.path)
         }
     }

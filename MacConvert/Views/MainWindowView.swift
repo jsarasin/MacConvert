@@ -38,6 +38,43 @@ struct MainWindowView: View {
         .sheet(isPresented: $model.isShowingFormatSupport) {
             FormatSupportView(model: model)
         }
+        .alert(
+            "Replace a File in the Same Format?",
+            isPresented: sameFormatAlertIsPresented,
+            presenting: model.sameFormatWarning
+        ) { warning in
+            Button("Skip All") {
+                model.resolveSameFormatWarning(warning.id, decision: .skipAll)
+            }
+            Button("Replace All", role: .destructive) {
+                model.resolveSameFormatWarning(warning.id, decision: .replaceAll)
+            }
+            Button("Skip this file", role: .cancel) {
+                model.resolveSameFormatWarning(warning.id, decision: .skipThisFile)
+            }
+            Button("Replace this file", role: .destructive) {
+                model.resolveSameFormatWarning(warning.id, decision: .replaceThisFile)
+            }
+        } message: { warning in
+            Text(sameFormatWarningMessage(warning))
+        }
+    }
+
+    private func sameFormatWarningMessage(_ warning: SameFormatWarning) -> String {
+        let remaining = warning.remainingFileCount == 1
+            ? "This is the only matching file in this batch."
+            : "There are \(warning.remainingFileCount) matching files in this batch."
+        let originalHandling = warning.backsUpOriginal
+            ? "MacConvert will back up and verify the original before installing the replacement."
+            : "The original will be deleted after the replacement is validated."
+        return "“\(warning.sourceURL.lastPathComponent)” is already in \(warning.targetFormatName) format. Replacing it will re-encode the file using the selected quality. \(originalHandling) \(remaining)"
+    }
+
+    private var sameFormatAlertIsPresented: Binding<Bool> {
+        Binding(
+            get: { model.sameFormatWarning != nil },
+            set: { _ in }
+        )
     }
 }
 

@@ -1,9 +1,9 @@
-import CryptoKit
 import Foundation
+import Darwin
 
-struct ConversionLocations: Sendable {
+struct ConversionLocations: Codable, Hashable, Sendable {
     let temporaryRoot: URL
-    let archiveRoot: URL
+    let archiveRoot: URL?
     let outputMode: OutputDestinationMode
     let outputRoot: URL
 }
@@ -20,17 +20,18 @@ struct ConversionUpdate: Sendable {
 
 struct ConversionResult: Sendable {
     let targetURL: URL
-    let archiveURL: URL
+    let archiveURL: URL?
     let warnings: [String]
     let technicalLog: String
 }
 
 enum ConversionWorkerError: LocalizedError {
     case failed(String)
+    case recoveryRequired(String)
 
     var errorDescription: String? {
         switch self {
-        case .failed(let message): message
+        case .failed(let message), .recoveryRequired(let message): message
         }
     }
 }
@@ -99,52 +100,57 @@ actor ConversionWorker {
                 throw ConversionWorkerError.failed("The target filename is too long and needs to be renamed")
             }
             let target = targetDirectory.appendingPathComponent(targetName)
-            guard !fileManager.fileExists(atPath: target.path) else {
+            let replacesSource = target.standardizedFileURL == source
+                && job.sameFormatPolicy == .replaceSource
+                && job.profile.quality(for: job.mediaKind) != .preserveQuality
+            guard !fileManager.fileExists(atPath: target.path) || replacesSource else {
                 throw ConversionWorkerError.failed("A file named \(targetName) already exists at the destination")
             }
             await onUpdate(.init(state: .inspecting, detail: "Source is ready", progress: nil, targetURL: target))
 
             try fileManager.createDirectory(at: locations.temporaryRoot, withIntermediateDirectories: true)
-            try fileManager.createDirectory(at: locations.archiveRoot, withIntermediateDirectories: true)
-            guard fileManager.isWritableFile(atPath: locations.temporaryRoot.path),
-                  fileManager.isWritableFile(atPath: locations.archiveRoot.path) else {
-                throw ConversionWorkerError.failed("The temporary and originals folders must be writable")
+            guard fileManager.isWritableFile(atPath: locations.temporaryRoot.path) else {
+                throw ConversionWorkerError.failed("The temporary folder must be writable")
+            }
+            if let archiveRoot = locations.archiveRoot {
+                try fileManager.createDirectory(at: archiveRoot, withIntermediateDirectories: true)
+                guard fileManager.isWritableFile(atPath: archiveRoot.path) else {
+                    throw ConversionWorkerError.failed("The originals folder must be writable")
+                }
             }
 
-            let archive = locations.archiveRoot.appendingPathComponent(source.lastPathComponent)
-            guard !fileManager.fileExists(atPath: archive.path) else {
+            let localSourceName = locations.archiveRoot == nil
+                ? "source" + (source.pathExtension.isEmpty ? "" : "." + source.pathExtension)
+                : timestampedOriginalName(for: source, timestamp: job.createdAt)
+            guard localSourceName.utf8.count <= 255 else {
                 throw ConversionWorkerError.failed(
-                    "An original named \(source.lastPathComponent) already exists in the Originals folder"
+                    "The timestamped original filename is too long for the Temporary and Originals folders"
                 )
             }
 
-            let temporarySource = locations.temporaryRoot.appendingPathComponent(source.lastPathComponent)
-            let temporaryOutput = locations.temporaryRoot.appendingPathComponent(targetName)
-            let partialOutput = locations.temporaryRoot
-                .appendingPathComponent(".macconvert-\(job.id.uuidString)-partial.\(outputExtension)")
-            let progressFile = locations.temporaryRoot
-                .appendingPathComponent(".macconvert-\(job.id.uuidString)-progress.txt")
-            let errorFile = locations.temporaryRoot
-                .appendingPathComponent(".macconvert-\(job.id.uuidString)-errors.txt")
-            ownedURLs.append(contentsOf: [partialOutput, progressFile, errorFile])
+            let archive = locations.archiveRoot?.appendingPathComponent(localSourceName)
+            if let archive, fileManager.fileExists(atPath: archive.path) {
+                throw ConversionWorkerError.failed(
+                    "A timestamped original named \(localSourceName) already exists in the Originals folder"
+                )
+            }
 
-            if fileManager.fileExists(atPath: temporarySource.path) {
-                if try fileHash(source) == fileHash(temporarySource) {
-                    throw ConversionWorkerError.failed("Exact file already converted")
-                }
-                try preserveExistingTemporaryFile(temporarySource)
-                warnings.append("A different file with the same filename existed in Temporary")
+            let workingDirectory = locations.temporaryRoot
+                .appendingPathComponent("macconvert-\(job.id.uuidString)", isDirectory: true)
+            guard !fileManager.fileExists(atPath: workingDirectory.path) else {
+                throw ConversionWorkerError.failed("Temporary files already exist for this job and were left untouched")
             }
-            if fileManager.fileExists(atPath: temporaryOutput.path) {
-                try preserveExistingTemporaryFile(temporaryOutput)
-                if !warnings.contains("A different file with the same filename existed in Temporary") {
-                    warnings.append("A different file with the same filename existed in Temporary")
-                }
-            }
+            try fileManager.createDirectory(at: workingDirectory, withIntermediateDirectories: false)
+            ownedURLs.append(workingDirectory)
+            let temporarySource = workingDirectory.appendingPathComponent(localSourceName)
+            let temporaryOutput = workingDirectory.appendingPathComponent("converted.\(outputExtension)")
+            let partialOutput = workingDirectory.appendingPathComponent("partial.\(outputExtension)")
+            let progressFile = workingDirectory.appendingPathComponent("progress.txt")
+            let errorFile = workingDirectory.appendingPathComponent("errors.txt")
 
             await onUpdate(.init(state: .copyingLocally, detail: "Copying original to Temporary", progress: nil, targetURL: target))
+            try Task.checkCancellation()
             try fileManager.copyItem(at: source, to: temporarySource)
-            ownedURLs.append(temporarySource)
             try verifyMatchingFileSizes(source, temporarySource)
 
             let hasTimedProgress = job.mediaKind == .video || job.mediaKind == .audio
@@ -166,7 +172,6 @@ actor ConversionWorker {
                 throw ConversionWorkerError.failed("FFmpeg finished without creating an output file")
             }
             try fileManager.moveItem(at: partialOutput, to: temporaryOutput)
-            ownedURLs.append(temporaryOutput)
 
             await onUpdate(.init(state: .validatingLocally, detail: "Validating converted file", progress: nil, targetURL: target))
             _ = try await probe(temporaryOutput, mediaKind: job.mediaKind, countFrames: false)
@@ -175,36 +180,100 @@ actor ConversionWorker {
                 "-map", "0:v?", "-map", "0:a?", "-f", "null", "-"
             ])
 
-            await onUpdate(.init(state: .publishing, detail: "Moving converted file into place", progress: nil, targetURL: target))
-            let staging = targetDirectory.appendingPathComponent(".macconvert-\(job.id.uuidString)-\(targetName)")
-            ownedURLs.append(staging)
-            try fileManager.copyItem(at: temporaryOutput, to: staging)
-            try verifyMatchingFileSizes(temporaryOutput, staging)
-            guard !fileManager.fileExists(atPath: target.path) else {
-                throw ConversionWorkerError.failed("The target appeared while the job was running; nothing was replaced")
+            try Task.checkCancellation()
+            if replacesSource {
+                if let archive {
+                    await onUpdate(.init(
+                        state: .archivingOriginal,
+                        detail: "Archiving original before replacement",
+                        progress: nil,
+                        targetURL: target,
+                        archiveURL: archive
+                    ))
+                    try Task.checkCancellation()
+                    try finalizeArchive(temporarySource, at: archive, jobID: job.id, ownedURLs: &ownedURLs)
+                    archivedURL = archive
+                }
+
+                await onUpdate(.init(
+                    state: .publishing,
+                    detail: "Installing validated replacement",
+                    progress: nil,
+                    targetURL: target,
+                    archiveURL: archive
+                ))
+                try await replaceSource(
+                    source,
+                    with: temporaryOutput,
+                    matchingOriginalCopy: temporarySource,
+                    jobID: job.id,
+                    mediaKind: job.mediaKind,
+                    ownedURLs: &ownedURLs,
+                    onInstalled: {
+                        onUpdate(.init(
+                            state: .validatingDestination,
+                            detail: "Checking replacement",
+                            progress: nil,
+                            targetURL: target,
+                            archiveURL: archive
+                        ))
+                    }
+                )
+                sourceWasRemoved = true
+            } else {
+                await onUpdate(.init(state: .publishing, detail: "Moving converted file into place", progress: nil, targetURL: target))
+                let staging = targetDirectory.appendingPathComponent(".macconvert-\(job.id.uuidString)-\(targetName)")
+                try Task.checkCancellation()
+                guard !fileManager.fileExists(atPath: staging.path) else {
+                    throw ConversionWorkerError.failed("A temporary publication file already exists and was left untouched")
+                }
+                ownedURLs.append(staging)
+                try fileManager.copyItem(at: temporaryOutput, to: staging)
+                try verifyMatchingFileSizes(temporaryOutput, staging)
+                guard !fileManager.fileExists(atPath: target.path) else {
+                    throw ConversionWorkerError.failed("The target appeared while the job was running; nothing was replaced")
+                }
+                try fileManager.moveItem(at: staging, to: target)
+                publishedURL = target
+
+                await onUpdate(.init(state: .validatingDestination, detail: "Checking published file", progress: nil, targetURL: target))
+                try verifyMatchingFileSizes(temporaryOutput, target)
+                _ = try await probe(target, mediaKind: job.mediaKind, countFrames: false)
+
+                if let archive {
+                    await onUpdate(.init(state: .archivingOriginal, detail: "Archiving original", progress: nil, targetURL: target, archiveURL: archive))
+                    try Task.checkCancellation()
+                    try finalizeArchive(temporarySource, at: archive, jobID: job.id, ownedURLs: &ownedURLs)
+                    archivedURL = archive
+                }
+
+                await onUpdate(.init(state: .removingSource, detail: "Removing original from source folder", progress: nil, targetURL: target, archiveURL: archive))
+                try Task.checkCancellation()
+                guard try filesHaveEqualContents(source, temporarySource) else {
+                    throw ConversionWorkerError.failed("The source changed while the job was running, so it was not deleted")
+                }
+                try Task.checkCancellation()
+                try fileManager.removeItem(at: source)
+                sourceWasRemoved = true
             }
-            try fileManager.moveItem(at: staging, to: target)
-            publishedURL = target
 
-            await onUpdate(.init(state: .validatingDestination, detail: "Checking published file", progress: nil, targetURL: target))
-            try verifyMatchingFileSizes(temporaryOutput, target)
-            _ = try await probe(target, mediaKind: job.mediaKind, countFrames: false)
-
-            await onUpdate(.init(state: .archivingOriginal, detail: "Archiving original", progress: nil, targetURL: target, archiveURL: archive))
-            archivedURL = archive
-            try fileManager.copyItem(at: temporarySource, to: archive)
-            try verifyMatchingFileSizes(temporarySource, archive)
-            try fileManager.removeItem(at: temporarySource)
-
-            await onUpdate(.init(state: .removingSource, detail: "Removing original from source folder", progress: nil, targetURL: target, archiveURL: archive))
-            try fileManager.removeItem(at: source)
-            sourceWasRemoved = true
-
-            try? fileManager.removeItem(at: temporaryOutput)
-            for url in [progressFile, errorFile] { try? fileManager.removeItem(at: url) }
-            logLines.append("Validated local output, published output, and archived original before removing the source.")
+            do {
+                try fileManager.removeItem(at: workingDirectory)
+            } catch {
+                warnings.append("The conversion succeeded, but some temporary files could not be removed")
+            }
+            if archive == nil {
+                logLines.append("Validated local and published output before deleting the original. No original backup was kept.")
+            } else if replacesSource {
+                logLines.append("Validated the local output and archived original before installing and validating the replacement.")
+            } else {
+                logLines.append("Validated local output, published output, and archived original before removing the source.")
+            }
             return ConversionResult(targetURL: target, archiveURL: archive, warnings: warnings, technicalLog: logLines.joined(separator: "\n"))
         } catch {
+            if case ConversionWorkerError.recoveryRequired = error {
+                sourceWasRemoved = true
+            }
             if !sourceWasRemoved {
                 for url in ownedURLs where fileManager.fileExists(atPath: url.path) {
                     try? fileManager.removeItem(at: url)
@@ -218,6 +287,30 @@ actor ConversionWorker {
             }
             throw error
         }
+    }
+
+    private func finalizeArchive(
+        _ temporarySource: URL,
+        at archive: URL,
+        jobID: UUID,
+        ownedURLs: inout [URL]
+    ) throws {
+        let staging = archive.deletingLastPathComponent()
+            .appendingPathComponent(".macconvert-\(jobID.uuidString)-archive")
+        guard !fileManager.fileExists(atPath: staging.path) else {
+            throw ConversionWorkerError.failed("A temporary archive file already exists and was left untouched")
+        }
+        ownedURLs.append(staging)
+        try fileManager.copyItem(at: temporarySource, to: staging)
+        try verifyMatchingFileSizes(temporarySource, staging)
+        guard try filesHaveEqualContents(temporarySource, staging) else {
+            throw ConversionWorkerError.failed("The archived original did not match the local source copy")
+        }
+        try Task.checkCancellation()
+        guard !fileManager.fileExists(atPath: archive.path) else {
+            throw ConversionWorkerError.failed("An original archive appeared while the job was running; nothing was replaced")
+        }
+        try fileManager.moveItem(at: staging, to: archive)
     }
 
     private func preflightSource(_ source: URL) throws -> Int64 {
@@ -236,6 +329,104 @@ actor ConversionWorker {
             throw ConversionWorkerError.failed("The source file size could not be read")
         }
         return Int64(fileSize)
+    }
+
+    private func replaceSource(
+        _ source: URL,
+        with convertedOutput: URL,
+        matchingOriginalCopy temporarySource: URL,
+        jobID: UUID,
+        mediaKind: MediaKind,
+        ownedURLs: inout [URL],
+        onInstalled: @escaping @MainActor @Sendable () async -> Void
+    ) async throws {
+        let directory = source.deletingLastPathComponent()
+        let staging = directory.appendingPathComponent(
+            ".macconvert-\(jobID.uuidString)-replacement.\(source.pathExtension)"
+        )
+        let backup = directory.appendingPathComponent(
+            ".macconvert-\(jobID.uuidString)-original.\(source.pathExtension)"
+        )
+        guard !fileManager.fileExists(atPath: staging.path),
+              !fileManager.fileExists(atPath: backup.path) else {
+            throw ConversionWorkerError.failed("MacConvert replacement files already exist beside the source")
+        }
+
+        ownedURLs.append(staging)
+        try fileManager.copyItem(at: convertedOutput, to: staging)
+        try verifyMatchingFileSizes(convertedOutput, staging)
+
+        var sourceMovedToBackup = false
+        var replacementInstalled = false
+        do {
+            try Task.checkCancellation()
+            try fileManager.moveItem(at: source, to: backup)
+            sourceMovedToBackup = true
+
+            guard try filesHaveEqualContents(backup, temporarySource) else {
+                throw ConversionWorkerError.failed(
+                    "The source changed while the job was running, so it was not replaced"
+                )
+            }
+            guard !fileManager.fileExists(atPath: source.path) else {
+                throw ConversionWorkerError.failed(
+                    "A file appeared at the source location while the job was running; nothing was replaced"
+                )
+            }
+
+            try Task.checkCancellation()
+            try fileManager.moveItem(at: staging, to: source)
+            replacementInstalled = true
+            await onInstalled()
+            try Task.checkCancellation()
+            try verifyMatchingFileSizes(convertedOutput, source)
+            _ = try await probe(source, mediaKind: mediaKind, countFrames: false)
+            try Task.checkCancellation()
+            try fileManager.removeItem(at: backup)
+        } catch {
+            if replacementInstalled, fileManager.fileExists(atPath: source.path) {
+                try? fileManager.removeItem(at: source)
+                replacementInstalled = false
+            }
+            if sourceMovedToBackup,
+               fileManager.fileExists(atPath: backup.path),
+               !fileManager.fileExists(atPath: source.path) {
+                do {
+                    try fileManager.moveItem(at: backup, to: source)
+                    sourceMovedToBackup = false
+                } catch {
+                    throw ConversionWorkerError.recoveryRequired(
+                        "The replacement failed and the original could not be restored automatically. The original recovery file beside the source and temporary working files were kept."
+                    )
+                }
+            }
+            if sourceMovedToBackup {
+                throw ConversionWorkerError.recoveryRequired(
+                    "The replacement failed and the source location changed unexpectedly. The original recovery file beside the source and temporary working files were kept."
+                )
+            }
+            throw error
+        }
+    }
+
+    private func filesHaveEqualContents(_ first: URL, _ second: URL) throws -> Bool {
+        let firstSize = try fileSize(at: first)
+        let secondSize = try fileSize(at: second)
+        guard firstSize == secondSize else { return false }
+
+        let firstHandle = try FileHandle(forReadingFrom: first)
+        let secondHandle = try FileHandle(forReadingFrom: second)
+        defer {
+            try? firstHandle.close()
+            try? secondHandle.close()
+        }
+        while true {
+            try Task.checkCancellation()
+            let firstData = try firstHandle.read(upToCount: 1_048_576) ?? Data()
+            let secondData = try secondHandle.read(upToCount: 1_048_576) ?? Data()
+            guard firstData == secondData else { return false }
+            if firstData.isEmpty { return true }
+        }
     }
 
     private func probe(_ url: URL, mediaKind: MediaKind, countFrames: Bool) async throws -> ProbeSummary {
@@ -402,6 +593,7 @@ actor ConversionWorker {
         errorFile: URL,
         onProgress: @escaping @Sendable (Double) async -> Void
     ) async throws -> String {
+        try Task.checkCancellation()
         fileManager.createFile(atPath: progressFile.path, contents: nil)
         fileManager.createFile(atPath: errorFile.path, contents: nil)
         let progressHandle = try FileHandle(forWritingTo: progressFile)
@@ -422,20 +614,28 @@ actor ConversionWorker {
             throw FFmpegRunnerError.launchFailed(error.localizedDescription)
         }
 
-        while process.isRunning {
-            if Task.isCancelled {
-                process.terminate()
-                while process.isRunning {
+        do {
+            while process.isRunning {
+                try Task.checkCancellation()
+                if let duration, duration > 0,
+                   let progressText = try? String(contentsOf: progressFile, encoding: .utf8),
+                   let outputSeconds = latestOutputTime(in: progressText) {
+                    await onProgress(min(max(outputSeconds / duration, 0), 0.99))
+                }
+                try await Task.sleep(for: .milliseconds(200))
+            }
+            try Task.checkCancellation()
+        } catch {
+            if process.isRunning { process.terminate() }
+            await Task.detached {
+                let deadline = Date().addingTimeInterval(2)
+                while process.isRunning, Date() < deadline {
                     try? await Task.sleep(for: .milliseconds(50))
                 }
-                throw CancellationError()
-            }
-            if let duration, duration > 0,
-               let progressText = try? String(contentsOf: progressFile, encoding: .utf8),
-               let outputSeconds = latestOutputTime(in: progressText) {
-                await onProgress(min(max(outputSeconds / duration, 0), 0.99))
-            }
-            try await Task.sleep(for: .milliseconds(200))
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                process.waitUntilExit()
+            }.value
+            throw error
         }
         try? progressHandle.synchronize()
         try? errorHandle.synchronize()
@@ -467,34 +667,30 @@ actor ConversionWorker {
     }
 
     private func verifyMatchingFileSizes(_ first: URL, _ second: URL) throws {
-        let firstSize = try first.resourceValues(forKeys: [.fileSizeKey]).fileSize
-        let secondSize = try second.resourceValues(forKeys: [.fileSizeKey]).fileSize
-        guard firstSize != nil, firstSize == secondSize else {
-            throw ConversionWorkerError.failed("A copied file did not match the expected size")
+        let firstSize = try fileSize(at: first)
+        let secondSize = try fileSize(at: second)
+        guard firstSize == secondSize else {
+            throw ConversionWorkerError.failed(
+                "The copied \(second.lastPathComponent) file size did not match \(first.lastPathComponent) (\(secondSize) versus \(firstSize) bytes)"
+            )
         }
     }
 
-    private func fileHash(_ url: URL) throws -> SHA256.Digest {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        var hasher = SHA256()
-        while let data = try handle.read(upToCount: 1_048_576), !data.isEmpty {
-            hasher.update(data: data)
+    private func fileSize(at url: URL) throws -> Int64 {
+        let attributes = try fileManager.attributesOfItem(atPath: url.path)
+        guard let size = attributes[.size] as? NSNumber else {
+            throw ConversionWorkerError.failed("The size of \(url.lastPathComponent) could not be read")
         }
-        return hasher.finalize()
+        return size.int64Value
     }
 
-    private func preserveExistingTemporaryFile(_ url: URL) throws {
-        let stamp = ISO8601DateFormatter().string(from: Date())
-            .replacingOccurrences(of: ":", with: "-")
-        let base = url.deletingPathExtension().lastPathComponent
-        let ext = url.pathExtension
-        let name = ext.isEmpty ? "\(base) \(stamp)" : "\(base) \(stamp).\(ext)"
-        let preserved = url.deletingLastPathComponent().appendingPathComponent(name)
-        guard !fileManager.fileExists(atPath: preserved.path) else {
-            throw ConversionWorkerError.failed("A timestamped Temporary collision also exists")
-        }
-        try fileManager.moveItem(at: url, to: preserved)
+    private func timestampedOriginalName(for source: URL, timestamp: Date) -> String {
+        let unixMilliseconds = Int64((timestamp.timeIntervalSince1970 * 1_000).rounded(.down))
+        let base = source.deletingPathExtension().lastPathComponent
+        let ext = source.pathExtension
+        return ext.isEmpty
+            ? "\(base)_\(unixMilliseconds)"
+            : "\(base)_\(unixMilliseconds).\(ext)"
     }
 
 }
