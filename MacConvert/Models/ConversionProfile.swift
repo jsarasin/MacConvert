@@ -15,6 +15,8 @@ struct ContainerOption: Codable, Hashable, Identifiable, Sendable {
     static let mov = ContainerOption(id: "mov", displayName: "MOV", fileExtension: "mov", isPopular: true)
     static let matroska = ContainerOption(id: "matroska", displayName: "Matroska (MKV)", fileExtension: "mkv", isPopular: true)
     static let webM = ContainerOption(id: "webm", displayName: "WebM", fileExtension: "webm", isPopular: true)
+    static let animatedPNG = ContainerOption(id: "apng", displayName: "Animated PNG", fileExtension: "png", isPopular: true)
+    static let animatedGIF = ContainerOption(id: "gif", displayName: "Animated GIF", fileExtension: "gif", isPopular: true)
     static let m4a = ContainerOption(id: "ipod", displayName: "M4A", fileExtension: "m4a", isPopular: true)
     static let mp3 = ContainerOption(id: "mp3", displayName: "MP3", fileExtension: "mp3", isPopular: true)
     static let flac = ContainerOption(id: "flac", displayName: "FLAC", fileExtension: "flac", isPopular: true)
@@ -22,6 +24,10 @@ struct ContainerOption: Codable, Hashable, Identifiable, Sendable {
     static let opus = ContainerOption(id: "opus", displayName: "Opus", fileExtension: "opus", isPopular: true)
     static let wav = ContainerOption(id: "wav", displayName: "WAV", fileExtension: "wav", isPopular: true)
     static let caf = ContainerOption(id: "caf", displayName: "CAF", fileExtension: "caf", isPopular: true)
+
+    var isAnimatedImageTarget: Bool { id == "apng" || id == "gif" }
+    var supportsAudio: Bool { !isAnimatedImageTarget }
+    var supportsAnimation: Bool { isAnimatedImageTarget }
 }
 
 struct EncoderOption: Codable, Hashable, Identifiable, Sendable {
@@ -135,6 +141,31 @@ struct ConversionProfile: Codable, Hashable, Sendable {
     var audioContainer: ContainerOption
     var audioOutputEncoder: EncoderOption
     var audioQuality: QualityPreset
+    var loopAnimation: Bool = true
+
+    init(
+        videoContainer: ContainerOption,
+        videoEncoder: EncoderOption,
+        audioEncoder: EncoderOption,
+        videoQuality: QualityPreset,
+        pictureFormat: PictureFormatOption,
+        pictureQuality: QualityPreset,
+        audioContainer: ContainerOption,
+        audioOutputEncoder: EncoderOption,
+        audioQuality: QualityPreset,
+        loopAnimation: Bool = true
+    ) {
+        self.videoContainer = videoContainer
+        self.videoEncoder = videoEncoder
+        self.audioEncoder = audioEncoder
+        self.videoQuality = videoQuality
+        self.pictureFormat = pictureFormat
+        self.pictureQuality = pictureQuality
+        self.audioContainer = audioContainer
+        self.audioOutputEncoder = audioOutputEncoder
+        self.audioQuality = audioQuality
+        self.loopAnimation = loopAnimation
+    }
 
     static let standard = ConversionProfile(
         videoContainer: .mp4,
@@ -145,8 +176,29 @@ struct ConversionProfile: Codable, Hashable, Sendable {
         pictureQuality: .preserveQuality,
         audioContainer: .m4a,
         audioOutputEncoder: .aac,
-        audioQuality: .preserveQuality
+        audioQuality: .preserveQuality,
+        loopAnimation: true
     )
+
+    private enum CodingKeys: String, CodingKey {
+        case videoContainer, videoEncoder, audioEncoder, videoQuality
+        case pictureFormat, pictureQuality, audioContainer, audioOutputEncoder, audioQuality
+        case loopAnimation
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        videoContainer = try values.decode(ContainerOption.self, forKey: .videoContainer)
+        videoEncoder = try values.decode(EncoderOption.self, forKey: .videoEncoder)
+        audioEncoder = try values.decode(EncoderOption.self, forKey: .audioEncoder)
+        videoQuality = try values.decode(QualityPreset.self, forKey: .videoQuality)
+        pictureFormat = try values.decode(PictureFormatOption.self, forKey: .pictureFormat)
+        pictureQuality = try values.decode(QualityPreset.self, forKey: .pictureQuality)
+        audioContainer = try values.decode(ContainerOption.self, forKey: .audioContainer)
+        audioOutputEncoder = try values.decode(EncoderOption.self, forKey: .audioOutputEncoder)
+        audioQuality = try values.decode(QualityPreset.self, forKey: .audioQuality)
+        loopAnimation = try values.decodeIfPresent(Bool.self, forKey: .loopAnimation) ?? true
+    }
 
     func quality(for mediaKind: MediaKind) -> QualityPreset {
         switch mediaKind {

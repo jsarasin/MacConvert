@@ -66,7 +66,6 @@ private struct MacConvertCommands: Commands {
             Divider()
             Button("Show Temporary") { model.showTemporary() }
             Button("Show Originals") { model.showOriginals() }
-                .disabled(!model.canShowOriginals)
             Button("Show Job Details") { model.inspectSelectedJob() }
                 .keyboardShortcut("i", modifiers: .command)
                 .disabled(model.selectedJob == nil)

@@ -32,9 +32,7 @@ struct JobDetailsView: View {
                     GridRow {
                         Text("Original handling")
                             .foregroundStyle(.secondary)
-                        Text(locations.archiveRoot == nil
-                             ? "Delete after the converted output is verified"
-                             : "Save a backup before deleting the source")
+                        Text(originalHandlingDescription(for: locations))
                     }
                 }
             }
@@ -44,6 +42,17 @@ struct JobDetailsView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(job.warnings, id: \.self) { warning in
                             Label(warning, systemImage: "exclamationmark.triangle")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if !job.informationalNotes.isEmpty {
+                GroupBox("Information") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(job.informationalNotes, id: \.self) { note in
+                            Label(note, systemImage: "info.circle")
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -84,6 +93,20 @@ struct JobDetailsView: View {
                 .lineLimit(1)
                 .help("Show in Finder")
         }
+    }
+
+    private func originalHandlingDescription(for locations: ConversionLocations) -> String {
+        if let originalWasRemoved = job.originalWasRemoved {
+            return originalWasRemoved
+                ? "Original removed after output publication and verification"
+                : "Original retained by profile choice"
+        }
+        if locations.removeOriginalAfterSuccess {
+            return locations.archiveRoot == nil
+                ? "Delete after the converted output is verified"
+                : "Save a backup before deleting the source"
+        }
+        return "Retain the original after the converted output is verified"
     }
 }
 

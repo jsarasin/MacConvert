@@ -18,9 +18,16 @@ struct FooterView: View {
 
             Spacer()
 
-            if model.canShowOriginals {
-                Button("Show Originals") { model.showOriginals() }
-            }
+            Button("Show Originals") { model.showOriginals() }
+            Toggle(
+                "Remove original after success",
+                isOn: Binding(
+                    get: { model.settings.removeOriginalAfterSuccess },
+                    set: { model.settings.removeOriginalAfterSuccess = $0 }
+                )
+            )
+                .toggleStyle(.checkbox)
+                .help("Apply to files added after this setting changes")
             Button("Clear History") { model.clearHistory() }
                 .disabled(model.finishedJobCount == 0)
         }

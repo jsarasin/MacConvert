@@ -6,6 +6,7 @@ struct JobRowView: View {
     let job: ConversionJob
     let onRetry: () -> Void
     let onCancel: () -> Void
+    let onProceed: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -36,6 +37,25 @@ struct JobRowView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
+                ForEach(job.informationalNotes, id: \.self) { note in
+                    Label(note, systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if job.state == .awaitingConfirmation {
+                    Label(job.confirmationMessage ?? "Confirmation is required before conversion", systemImage: job.state.symbolName)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 8) {
+                        Button("Proceed with conversion", action: onProceed)
+                            .buttonStyle(.borderedProminent)
+                        Button("Cancel Job", role: .cancel, action: onCancel)
+                            .buttonStyle(.bordered)
+                    }
+                }
+
                 if job.state.isActive {
                     if let progress = job.progress {
                         ProgressView(value: progress)
@@ -65,7 +85,7 @@ struct JobRowView: View {
                     .accessibilityLabel("Retry \(job.sourceURL.lastPathComponent)")
                 }
 
-                if !job.state.isFinished {
+                if !job.state.isFinished && job.state != .awaitingConfirmation {
                     Button(action: onCancel) {
                         Image(systemName: "xmark.circle")
                     }
@@ -122,7 +142,8 @@ struct JobRowView: View {
             size: 4_160_000_000
         ),
         onRetry: {},
-        onCancel: {}
+        onCancel: {},
+        onProceed: {}
     )
     .frame(width: 640)
     .padding()
@@ -139,7 +160,8 @@ struct JobRowView: View {
             warnings: ["The source color profile was not included"]
         ),
         onRetry: {},
-        onCancel: {}
+        onCancel: {},
+        onProceed: {}
     )
     .frame(width: 640)
     .padding()
@@ -153,7 +175,8 @@ struct JobRowView: View {
             detail: "File is already in the selected output format"
         ),
         onRetry: {},
-        onCancel: {}
+        onCancel: {},
+        onProceed: {}
     )
     .frame(width: 640)
     .padding()

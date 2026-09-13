@@ -9,7 +9,8 @@ struct JobHistoryView: View {
                 JobRowView(
                     job: job,
                     onRetry: { model.retry(job.id) },
-                    onCancel: { model.cancel(job.id) }
+                    onCancel: { model.cancel(job.id) },
+                    onProceed: { model.proceed(job.id) }
                 )
                 .tag(job.id)
                 .contentShape(Rectangle())
@@ -24,6 +25,9 @@ struct JobHistoryView: View {
                 .contextMenu {
                     let locations = FinderService.existingLocations(for: job)
                     Button("Inspect") { model.inspect(job) }
+                    if job.state == .awaitingConfirmation {
+                        Button("Proceed with conversion") { model.proceed(job.id) }
+                    }
                     if !locations.isEmpty {
                         Divider()
                     }

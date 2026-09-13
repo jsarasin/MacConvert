@@ -576,6 +576,46 @@ final class MacConvertTests: XCTestCase {
         try assertTemporaryStorageIsEmpty(fixture.locations.temporaryRoot)
     }
 
+    func testH264ConversionPadsOddDimensionsWithoutCropping() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MacConvertOddDimensionsTests-\(UUID().uuidString)", isDirectory: true)
+        let sourceDirectory = root.appendingPathComponent("Source", isDirectory: true)
+        let temporaryDirectory = root.appendingPathComponent("Temporary", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = sourceDirectory.appendingPathComponent("odd-height.mkv")
+        let executables = try testExecutables()
+        let runner = FFmpegRunner(executables: executables)
+        _ = try await runner.runFFmpeg(arguments: [
+            "-hide_banner", "-v", "error", "-y",
+            "-f", "lavfi", "-i", "testsrc=size=986x531:rate=12:duration=0.5",
+            "-c:v", "ffv1", "-pix_fmt", "yuv444p", source.path
+        ])
+
+        let result = try await ConversionWorker(executables: executables).process(
+            job: ConversionJob(sourceURL: source, mediaKind: .video, profile: .standard),
+            locations: ConversionLocations(
+                temporaryRoot: temporaryDirectory,
+                archiveRoot: nil,
+                outputMode: .besideSource,
+                outputRoot: root
+            ),
+            onUpdate: { _ in }
+        )
+
+        XCTAssertEqual(result.targetURL.lastPathComponent, "odd-height.mp4")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertTrue(result.warnings.contains { $0.contains("H.264 4:2:0 output requires even video dimensions") })
+        XCTAssertTrue(result.technicalLog.contains("986×531 to 986×532"))
+
+        let dimensions = try await runner.runFFprobe(arguments: [
+            "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=width,height", "-of", "csv=p=0", result.targetURL.path
+        ])
+        XCTAssertEqual(dimensions.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines), "986,532")
+    }
+
     func testNoBackupCollisionPreservesOriginalAndExistingDestination() async throws {
         let fixture = try await makeVideoFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -807,6 +847,86 @@ final class MacConvertTests: XCTestCase {
             "-v", "error", "-show_entries", "stream=codec_name", "-of", "csv=p=0", result.targetURL.path
         ])
         XCTAssertTrue(probe.standardOutput.contains("png"))
+    }
+
+    func testVideoAnimationTargetsAreDiscoveredAndDoNotExposeAudioOrVideoEncoders() {
+        let model = makeStoppedModel(suite: "AnimationTargets")
+        model.ffmpegCatalog = FFmpegCatalog(
+            version: "test",
+            buildConfiguration: "test",
+            muxers: [
+                FFmpegMuxer(id: "mp4", description: "MP4"),
+                FFmpegMuxer(id: "apng", description: "Animated PNG"),
+                FFmpegMuxer(id: "gif", description: "Animated GIF")
+            ],
+            encoders: [
+                FFmpegEncoder(id: "apng", description: "Animated PNG", codecID: "apng", mediaKind: .video, isHardwareAccelerated: false),
+                FFmpegEncoder(id: "gif", description: "Animated GIF", codecID: "gif", mediaKind: .video, isHardwareAccelerated: false)
+            ]
+        )
+        XCTAssertTrue(model.availableVideoContainers.contains(.animatedPNG))
+        XCTAssertTrue(model.availableVideoContainers.contains(.animatedGIF))
+
+        model.chooseVideoContainer(.animatedGIF)
+        XCTAssertTrue(model.availableVideoEncoders.isEmpty)
+        XCTAssertTrue(model.availableAudioEncoders.isEmpty)
+        XCTAssertTrue(model.currentProfile.loopAnimation)
+    }
+
+    func testVideoToAnimatedGIFUsesFixedExtensionAndRetainsSourceWhenRemovalIsDisabled() async throws {
+        let fixture = try await makeVideoFixture(fileExtension: "mp4")
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        var profile = ConversionProfile.standard
+        profile.videoContainer = .animatedGIF
+        profile.loopAnimation = false
+
+        let result = try await ConversionWorker(executables: fixture.executables).process(
+            job: ConversionJob(sourceURL: fixture.source, mediaKind: .video, profile: profile),
+            locations: ConversionLocations(
+                temporaryRoot: fixture.locations.temporaryRoot,
+                archiveRoot: nil,
+                outputMode: .besideSource,
+                outputRoot: fixture.root,
+                removeOriginalAfterSuccess: false
+            ),
+            onUpdate: { _ in }
+        )
+
+        XCTAssertEqual(result.targetURL.lastPathComponent, "sample.gif")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.targetURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.source.path))
+        XCTAssertFalse(result.originalWasRemoved)
+        let probe = try await FFmpegRunner(executables: fixture.executables).runFFprobe(arguments: [
+            "-v", "error", "-show_entries", "stream=codec_name", "-of", "csv=p=0", result.targetURL.path
+        ])
+        XCTAssertTrue(probe.standardOutput.contains("gif"))
+    }
+
+    func testVideoToAnimatedPNGUsesAPNGAndPreservesSourceTiming() async throws {
+        let fixture = try await makeVideoFixture(fileExtension: "webm")
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        var profile = ConversionProfile.standard
+        profile.videoContainer = .animatedPNG
+
+        let result = try await ConversionWorker(executables: fixture.executables).process(
+            job: ConversionJob(sourceURL: fixture.source, mediaKind: .video, profile: profile),
+            locations: fixture.locations,
+            onUpdate: { _ in }
+        )
+
+        XCTAssertEqual(result.targetURL.pathExtension, "png")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.source.path))
+        XCTAssertTrue(result.technicalLog.contains("Animated PNG"))
+    }
+
+    func testPreflightRequestsConfirmationForSameContainerWithoutCreatingOutput() async throws {
+        let fixture = try await makeVideoFixture(fileExtension: "mp4")
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let job = ConversionJob(sourceURL: fixture.source, mediaKind: .video, profile: .standard)
+        let preflight = try await ConversionWorker(executables: fixture.executables).preflight(for: job)
+        XCTAssertEqual(preflight.confirmationReason, .sameContainer)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.source.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.source.deletingLastPathComponent().appendingPathComponent("sample-converted.mp4").path))
     }
 
     func testBundledIsTheDefaultFFmpegSource() {

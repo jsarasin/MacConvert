@@ -47,8 +47,8 @@ private struct LocationsSettingsView: View {
             Section("Original Files") {
                 Toggle("Keep a backup of original files", isOn: $settings.backupOriginals)
                 Text(settings.backupOriginals
-                     ? "Originals are copied to the backup folder before the source files are deleted."
-                     : "Source files are deleted after their converted replacements are validated. No backup is kept.")
+                     ? "Originals are copied to the backup folder before the source files are deleted when removal is enabled."
+                     : "Source removal is controlled by Remove original after success in the main window footer.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 

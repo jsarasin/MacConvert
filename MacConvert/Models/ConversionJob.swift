@@ -10,6 +10,7 @@ enum MediaKind: String, Codable, Hashable, Sendable {
 enum JobState: String, Codable, Hashable, Sendable {
     case queued
     case inspecting
+    case awaitingConfirmation
     case awaitingFilename
     case copyingLocally
     case converting
@@ -44,6 +45,7 @@ enum JobState: String, Codable, Hashable, Sendable {
         switch self {
         case .queued: "Queued"
         case .inspecting: "Inspecting"
+        case .awaitingConfirmation: "Awaiting Confirmation"
         case .awaitingFilename: "Waiting for a filename"
         case .copyingLocally: "Copying locally"
         case .converting: "Converting"
@@ -66,9 +68,16 @@ enum JobState: String, Codable, Hashable, Sendable {
         case .failed: "xmark.octagon.fill"
         case .cancelled: "minus.circle.fill"
         case .queued: "clock"
+        case .awaitingConfirmation: "questionmark.circle"
         default: "arrow.triangle.2.circlepath"
         }
     }
+}
+
+enum ConfirmationReason: String, Codable, Hashable, Sendable {
+    case longVideoToAnimation
+    case sameContainer
+    case longVideoAndSameContainer
 }
 
 enum SameFormatPolicy: String, Codable, Hashable, Sendable {
@@ -92,6 +101,10 @@ struct ConversionJob: Identifiable, Codable, Hashable, Sendable {
     var statusDetail: String
     var warnings: [String]
     var technicalLog: String
+    var informationalNotes: [String]
+    var confirmationReason: ConfirmationReason?
+    var confirmationAcknowledged: Bool
+    var originalWasRemoved: Bool?
 
     init(
         sourceURL: URL,
@@ -112,18 +125,56 @@ struct ConversionJob: Identifiable, Codable, Hashable, Sendable {
         self.statusDetail = "Waiting to be inspected"
         self.warnings = []
         self.technicalLog = ""
+        self.informationalNotes = []
+        self.confirmationReason = nil
+        self.confirmationAcknowledged = false
+        self.originalWasRemoved = nil
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, sourceURL, mediaKind, profile, sameFormatPolicy, locations, createdAt
+        case sourceFileSizeBytes, targetURL, archiveURL, state, progress, statusDetail
+        case warnings, technicalLog, informationalNotes, confirmationReason, confirmationAcknowledged, originalWasRemoved
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        sourceURL = try values.decode(URL.self, forKey: .sourceURL)
+        mediaKind = try values.decode(MediaKind.self, forKey: .mediaKind)
+        profile = try values.decode(ConversionProfile.self, forKey: .profile)
+        sameFormatPolicy = try values.decodeIfPresent(SameFormatPolicy.self, forKey: .sameFormatPolicy) ?? .reject
+        locations = try values.decodeIfPresent(ConversionLocations.self, forKey: .locations)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+        sourceFileSizeBytes = try values.decodeIfPresent(Int64.self, forKey: .sourceFileSizeBytes)
+        targetURL = try values.decodeIfPresent(URL.self, forKey: .targetURL)
+        archiveURL = try values.decodeIfPresent(URL.self, forKey: .archiveURL)
+        state = try values.decode(JobState.self, forKey: .state)
+        progress = try values.decodeIfPresent(Double.self, forKey: .progress)
+        statusDetail = try values.decode(String.self, forKey: .statusDetail)
+        warnings = try values.decodeIfPresent([String].self, forKey: .warnings) ?? []
+        technicalLog = try values.decodeIfPresent(String.self, forKey: .technicalLog) ?? ""
+        informationalNotes = try values.decodeIfPresent([String].self, forKey: .informationalNotes) ?? []
+        confirmationReason = try values.decodeIfPresent(ConfirmationReason.self, forKey: .confirmationReason)
+        confirmationAcknowledged = try values.decodeIfPresent(Bool.self, forKey: .confirmationAcknowledged) ?? false
+        originalWasRemoved = try values.decodeIfPresent(Bool.self, forKey: .originalWasRemoved)
     }
 
     var profileSummary: String {
         switch mediaKind {
         case .video:
-            "\(sourceURL.pathExtension.uppercased()) → \(profile.videoContainer.displayName) • \(profile.videoEncoder.displayName) • \(profile.audioEncoder.displayName) • \(profile.videoQuality.displayName)"
+            if profile.videoContainer.isAnimatedImageTarget {
+                let loop = profile.loopAnimation ? "Loops continuously" : "Plays once"
+                return "\(sourceURL.pathExtension.uppercased()) → \(profile.videoContainer.displayName) • \(profile.videoQuality.displayName) • Source timing • \(loop)"
+            } else {
+                return "\(sourceURL.pathExtension.uppercased()) → \(profile.videoContainer.displayName) • \(profile.videoEncoder.displayName) • \(profile.audioEncoder.displayName) • \(profile.videoQuality.displayName)"
+            }
         case .picture:
-            "\(sourceURL.pathExtension.uppercased()) → \(profile.pictureFormat.displayName) • \(profile.pictureQuality.displayName)"
+            return "\(sourceURL.pathExtension.uppercased()) → \(profile.pictureFormat.displayName) • \(profile.pictureQuality.displayName)"
         case .audio:
-            "\(sourceURL.pathExtension.uppercased()) → \(profile.audioContainer.displayName) • \(profile.audioOutputEncoder.displayName) • \(profile.audioQuality.displayName)"
+            return "\(sourceURL.pathExtension.uppercased()) → \(profile.audioContainer.displayName) • \(profile.audioOutputEncoder.displayName) • \(profile.audioQuality.displayName)"
         case .unsupported:
-            "Unsupported file"
+            return "Unsupported file"
         }
     }
 
@@ -144,5 +195,28 @@ struct ConversionJob: Identifiable, Codable, Hashable, Sendable {
             .number.precision(.fractionLength(0...decimals))
         )
         return "\(number) \(unit)"
+    }
+
+    var confirmationMessage: String? {
+        switch confirmationReason {
+        case .longVideoToAnimation:
+            "This video is longer than 30 seconds and may create a large animated file. It may take a while to convert or load in some applications."
+        case .sameContainer:
+            "The source is already in the selected output container. Proceed using the selected profile?"
+        case .longVideoAndSameContainer:
+            "The source is already in the selected output container, and this video is longer than 30 seconds. Proceed using the selected profile?"
+        case nil:
+            nil
+        }
+    }
+
+    var conversionPlanSummary: String {
+        if mediaKind == .video && profile.videoContainer.isAnimatedImageTarget {
+            let quality = profile.videoContainer.id == "apng"
+                ? (profile.videoQuality == .preserveQuality ? "Lossless" : profile.videoQuality.displayName)
+                : (profile.videoQuality == .preserveQuality ? "256-color palette" : "Reduced palette and frame rate")
+            return "\(profile.videoContainer.displayName) • \(quality) • Animation timing preserved"
+        }
+        return profileSummary
     }
 }

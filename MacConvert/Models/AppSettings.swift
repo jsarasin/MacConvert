@@ -32,6 +32,7 @@ final class AppSettings {
 
     var showAllSupportedFormats: Bool { didSet { save() } }
     var backupOriginals: Bool { didSet { save() } }
+    var removeOriginalAfterSuccess: Bool { didSet { save() } }
     var archivePath: String { didSet { save() } }
     var temporaryPath: String {
         FileManager.default.temporaryDirectory.appendingPathComponent("MacConvert", isDirectory: true).path
@@ -55,6 +56,7 @@ final class AppSettings {
 
         showAllSupportedFormats = defaults.bool(forKey: "showAllSupportedFormats")
         backupOriginals = defaults.bool(forKey: "backupOriginals")
+        removeOriginalAfterSuccess = defaults.object(forKey: "removeOriginalAfterSuccess") as? Bool ?? true
         archivePath = defaults.string(forKey: "archivePath") ?? ""
         defaults.removeObject(forKey: "temporaryPath")
         outputPath = defaults.string(forKey: "outputPath") ?? home
@@ -71,6 +73,14 @@ final class AppSettings {
         customFFprobePath = defaults.string(forKey: "customFFprobePath") ?? ""
     }
 
+    func defaultsData(forKey key: String) -> Data? {
+        defaults.data(forKey: key)
+    }
+
+    func setDefaultsData(_ data: Data?, forKey key: String) {
+        defaults.set(data, forKey: key)
+    }
+
     func restoreLocationDefaults() {
         backupOriginals = false
         archivePath = ""
@@ -80,6 +90,7 @@ final class AppSettings {
     private func save() {
         defaults.set(showAllSupportedFormats, forKey: "showAllSupportedFormats")
         defaults.set(backupOriginals, forKey: "backupOriginals")
+        defaults.set(removeOriginalAfterSuccess, forKey: "removeOriginalAfterSuccess")
         defaults.set(archivePath, forKey: "archivePath")
         defaults.set(outputPath, forKey: "outputPath")
         defaults.set(outputDestinationMode.rawValue, forKey: "outputDestinationMode")

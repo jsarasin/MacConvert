@@ -108,6 +108,10 @@ enum FFmpegCompatibility {
 
     static func supports(containerID: String, codecID: String, mediaKind: EncoderMediaKind) -> Bool {
         switch containerID {
+        case "apng":
+            return mediaKind == .video && codecID == "apng"
+        case "gif":
+            return mediaKind == .video && codecID == "gif"
         case "mp4":
             return mediaKind == .video
                 ? ["h264", "hevc", "av1", "mpeg4"].contains(codecID)

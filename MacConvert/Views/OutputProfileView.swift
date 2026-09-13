@@ -46,22 +46,26 @@ struct OutputProfileView: View {
                     .disabled(model.isDiscoveringFormats || model.availableVideoContainers.isEmpty)
                 }
 
-                pickerField("Video Encoding", width: 185) {
+                if !model.selectedVideoContainer.isAnimatedImageTarget {
+                    pickerField("Video Encoding", width: 185) {
                     Picker("Video Encoding", selection: $model.selectedVideoEncoder) {
                         ForEach(model.availableVideoEncoders) { option in
                             Text(option.displayName).tag(option)
                         }
                     }
                     .disabled(model.isDiscoveringFormats || model.availableVideoEncoders.isEmpty)
+                    }
                 }
 
-                pickerField("Audio Encoding", width: 135) {
+                if model.selectedVideoContainer.supportsAudio {
+                    pickerField("Audio Encoding", width: 135) {
                     Picker("Audio Encoding", selection: $model.selectedAudioEncoder) {
                         ForEach(model.availableAudioEncoders) { option in
                             Text(option.displayName).tag(option)
                         }
                     }
                     .disabled(model.isDiscoveringFormats || model.availableAudioEncoders.isEmpty)
+                    }
                 }
 
                 pickerField("Quality", width: 150) {
@@ -76,6 +80,14 @@ struct OutputProfileView: View {
                             Text(option.displayName).tag(option)
                         }
                     }
+                }
+
+                if model.selectedVideoContainer.isAnimatedImageTarget {
+                    Toggle("Loop animation", isOn: $model.loopAnimation)
+                        .toggleStyle(.checkbox)
+                        .frame(minWidth: 125, alignment: .leading)
+                        .padding(.top, 15)
+                        .help("Loop indefinitely when enabled; otherwise play once")
                 }
             }
         }

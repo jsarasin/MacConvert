@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CustomEncodingView: View {
     let kind: CustomSheetKind
+    var isAnimatedVideoTarget = false
     let onCancel: () -> Void
     let onApply: () -> Void
 
@@ -12,6 +13,7 @@ struct CustomEncodingView: View {
     @State private var preserveFrameRate = true
     @State private var preserveMetadata = true
     @State private var preserveAlpha = true
+    @State private var generatePalette = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -37,7 +39,16 @@ struct CustomEncodingView: View {
                     }
                 }
 
-                if kind == .video {
+                if kind == .video && isAnimatedVideoTarget {
+                    Section("Animation") {
+                        Toggle("Preserve source timing", isOn: $preserveFrameRate)
+                        Toggle("Preserve original dimensions", isOn: $preserveResolution)
+                        Toggle("Generate optimized palette and dithering", isOn: $generatePalette)
+                        Text("Audio is intentionally stripped because animated image formats do not support audio.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if kind == .video {
                     Section("Video and Audio") {
                         Toggle("Preserve original resolution", isOn: $preserveResolution)
                         Toggle("Preserve original frame rate", isOn: $preserveFrameRate)
@@ -78,6 +89,7 @@ struct CustomEncodingView: View {
                     preserveFrameRate = true
                     preserveMetadata = true
                     preserveAlpha = true
+                    generatePalette = true
                 }
 
                 Spacer()
@@ -89,7 +101,7 @@ struct CustomEncodingView: View {
             }
         }
         .padding(20)
-        .frame(width: 560, height: kind == .video ? 520 : 430)
+        .frame(width: 560, height: kind == .video ? (isAnimatedVideoTarget ? 470 : 520) : 430)
     }
 
     private var title: String {

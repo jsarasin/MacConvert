@@ -53,6 +53,7 @@ final class AppModel {
     var selectedAudioContainer: ContainerOption = .m4a
     var selectedAudioOutputEncoder: EncoderOption = .aac
     var selectedAudioQuality: QualityPreset = .preserveQuality
+    var loopAnimation = true
 
     var ffmpegCatalog = FFmpegCatalog.empty
     var ffmpegStatus = "Checking bundled FFmpeg…"
@@ -64,7 +65,9 @@ final class AppModel {
     var activeFFmpegURL: URL?
     var activeFFprobeURL: URL?
 
-    var jobs: [ConversionJob] = []
+    var jobs: [ConversionJob] = [] {
+        didSet { persistJobs() }
+    }
     var selectedJobID: UUID?
     var presentedJob: ConversionJob?
     var customSheetKind: CustomSheetKind?
@@ -75,17 +78,33 @@ final class AppModel {
 
     init(settings: AppSettings = AppSettings()) {
         self.settings = settings
+        if settings.rememberHistory,
+           let data = settings.defaultsData(forKey: "jobsJournal"),
+           let restored = try? JSONDecoder().decode([ConversionJob].self, from: data) {
+            self.jobs = restored.map(Self.recoveredJob)
+        }
     }
 
     var availableVideoContainers: [ContainerOption] {
-        let options = ffmpegCatalog.muxers.map(containerOption)
+        let options = ffmpegCatalog.muxers
+            .filter { !["apng", "gif"].contains($0.id) }
+            .map(containerOption)
         let filtered = settings.showAllSupportedFormats
             ? options
             : options.filter { FFmpegCompatibility.popularContainerIDs.contains($0.id) }
-        return preferredOrder(filtered, ids: ["mp4", "mov", "matroska", "webm"])
+        var result = preferredOrder(filtered, ids: ["mp4", "mov", "matroska", "webm"])
+        let encoderIDs = Set(ffmpegCatalog.encoders.filter { $0.mediaKind == .video }.map(\.codecID))
+        if ffmpegCatalog.muxerIDs.contains("apng") && encoderIDs.contains("apng") {
+            result.append(.animatedPNG)
+        }
+        if ffmpegCatalog.muxerIDs.contains("gif") && encoderIDs.contains("gif") {
+            result.append(.animatedGIF)
+        }
+        return result
     }
 
     var availableVideoEncoders: [EncoderOption] {
+        guard !selectedVideoContainer.isAnimatedImageTarget else { return [] }
         var options = availableEncoders(kind: .video, containerID: selectedVideoContainer.id)
         if options.contains(where: { $0.codecID == "h264" }) {
             options.insert(.h264, at: 0)
@@ -94,7 +113,8 @@ final class AppModel {
     }
 
     var availableAudioEncoders: [EncoderOption] {
-        availableEncoders(kind: .audio, containerID: selectedVideoContainer.id)
+        guard selectedVideoContainer.supportsAudio else { return [] }
+        return availableEncoders(kind: .audio, containerID: selectedVideoContainer.id)
     }
 
     var availableAudioContainers: [ContainerOption] {
@@ -135,7 +155,8 @@ final class AppModel {
             pictureQuality: selectedPictureQuality,
             audioContainer: selectedAudioContainer,
             audioOutputEncoder: selectedAudioOutputEncoder,
-            audioQuality: selectedAudioQuality
+            audioQuality: selectedAudioQuality,
+            loopAnimation: loopAnimation
         )
     }
 
@@ -257,8 +278,6 @@ final class AppModel {
     func addFiles(_ urls: [URL]) {
         let profile = currentProfile
         let locationSnapshot = Result { try captureLocations() }
-        let batchID = UUID()
-        var pendingJobs: [ConversionJob] = []
 
         for url in urls where !hasUnfinishedOrPendingJob(for: url) {
             let kind = classify(url)
@@ -278,28 +297,10 @@ final class AppModel {
             if kind == .unsupported {
                 job.state = .failed
                 job.statusDetail = "Unsupported file type"
-            } else if isAlreadyTargetFormat(url: url, kind: kind, profile: profile) {
-                if profile.quality(for: kind) == .preserveQuality {
-                    job.state = .failed
-                    job.statusDetail = "File is already in the selected output format"
-                } else {
-                    pendingJobs.append(ConversionJob(
-                        sourceURL: url,
-                        mediaKind: kind,
-                        profile: profile,
-                        sameFormatPolicy: .replaceSource,
-                        locations: job.locations
-                    ))
-                    continue
-                }
             }
 
             jobs.append(job)
             loadSourceFileSize(for: job.id, from: url)
-        }
-        if !pendingJobs.isEmpty {
-            pendingSameFormatBatches.append(.init(id: batchID, jobs: pendingJobs))
-            presentNextSameFormatWarningIfNeeded()
         }
         if settings.startImmediately {
             startQueuedJobs()
@@ -378,6 +379,18 @@ final class AppModel {
         }
     }
 
+    func proceed(_ id: UUID) {
+        updateJob(id) { job in
+            guard job.state == .awaitingConfirmation else { return }
+            job.confirmationAcknowledged = true
+            job.confirmationReason = nil
+            job.state = .queued
+            job.statusDetail = "Waiting to be inspected"
+            job.progress = nil
+        }
+        startQueuedJobs()
+    }
+
     func cancelSelectedJob() {
         guard let selectedJobID else { return }
         cancel(selectedJobID)
@@ -393,6 +406,10 @@ final class AppModel {
             job.technicalLog = ""
             job.targetURL = nil
             job.archiveURL = nil
+            job.informationalNotes = []
+            job.confirmationReason = nil
+            job.confirmationAcknowledged = false
+            job.originalWasRemoved = nil
         }
         startQueuedJobs()
     }
@@ -427,16 +444,16 @@ final class AppModel {
     }
 
     func showOriginals() {
-        guard canShowOriginals else { return }
-        FinderService.reveal(URL(fileURLWithPath: settings.archivePath, isDirectory: true))
+        let folder = settings.archivePath.isEmpty
+            ? FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Documents", isDirectory: true)
+                .appendingPathComponent("MacConvert Originals", isDirectory: true)
+            : URL(fileURLWithPath: settings.archivePath, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        FinderService.reveal(folder)
     }
 
-    var canShowOriginals: Bool {
-        guard !settings.archivePath.isEmpty else { return false }
-        var isDirectory: ObjCBool = false
-        return FileManager.default.fileExists(atPath: settings.archivePath, isDirectory: &isDirectory)
-            && isDirectory.boolValue
-    }
+    var canShowOriginals: Bool { true }
 
     private func captureLocations() throws -> ConversionLocations {
         if settings.backupOriginals && settings.archivePath.isEmpty {
@@ -447,7 +464,8 @@ final class AppModel {
             archiveRoot: settings.backupOriginals
                 ? URL(fileURLWithPath: settings.archivePath, isDirectory: true) : nil,
             outputMode: settings.outputDestinationMode,
-            outputRoot: URL(fileURLWithPath: settings.outputPath, isDirectory: true)
+            outputRoot: URL(fileURLWithPath: settings.outputPath, isDirectory: true),
+            removeOriginalAfterSuccess: settings.removeOriginalAfterSuccess
         )
     }
 
@@ -476,6 +494,22 @@ final class AppModel {
     private func updateJob(_ id: UUID, action: (inout ConversionJob) -> Void) {
         guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
         action(&jobs[index])
+    }
+
+    private func persistJobs() {
+        guard settings.rememberHistory,
+              let data = try? JSONEncoder().encode(jobs) else { return }
+        settings.setDefaultsData(data, forKey: "jobsJournal")
+    }
+
+    private static func recoveredJob(_ job: ConversionJob) -> ConversionJob {
+        var recovered = job
+        if job.state.isActive {
+            recovered.state = .queued
+            recovered.progress = nil
+            recovered.statusDetail = "Recovered after the app closed; waiting to be inspected"
+        }
+        return recovered
     }
 
     private func scheduleQueuedJobs() {
@@ -521,6 +555,25 @@ final class AppModel {
     ) async {
         let worker = ConversionWorker(executables: executables)
         do {
+            if !job.confirmationAcknowledged {
+                let preflight = try await worker.preflight(for: job)
+                if job.profile.videoContainer.isAnimatedImageTarget && preflight.hasAudio {
+                    updateJob(job.id) { current in
+                        current.informationalNotes = ["Audio will be stripped because \(current.profile.videoContainer.displayName) does not support audio."]
+                    }
+                }
+                if let reason = preflight.confirmationReason {
+                    updateJob(job.id) { current in
+                        current.state = .awaitingConfirmation
+                        current.confirmationReason = reason
+                        current.progress = nil
+                        current.statusDetail = current.confirmationMessage ?? "Awaiting confirmation"
+                    }
+                    jobTasks[job.id] = nil
+                    scheduleQueuedJobs()
+                    return
+                }
+            }
             let result = try await worker.process(job: job, locations: locations) { [weak self] update in
                 guard let self else { return }
                 self.apply(update, to: job.id)
@@ -529,11 +582,16 @@ final class AppModel {
                 current.targetURL = result.targetURL
                 current.archiveURL = result.archiveURL
                 current.warnings = result.warnings
+                current.informationalNotes = result.informationalNotes
+                current.originalWasRemoved = result.originalWasRemoved
+                current.confirmationReason = nil
                 current.technicalLog = result.technicalLog
                 current.progress = nil
                 if result.warnings.isEmpty {
                     current.state = .successful
-                    current.statusDetail = "Successful"
+                    current.statusDetail = result.informationalNotes.isEmpty
+                        ? "Successful"
+                        : "Successful — \(result.informationalNotes.joined(separator: " • "))"
                 } else {
                     current.state = .successfulWithWarning
                     current.statusDetail = "Successful with warning"
